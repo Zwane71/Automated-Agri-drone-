@@ -1,0 +1,40 @@
+# Python virtual environment
+env/
+.venv/
+venv/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# YOLO training outputs
+runs/
+#*.pt
+
+# Model weights (large files)
+models/*.pt
+
+# Dataset (usually too large for GitHub)
+dataset/
+
+# Prediction outputs
+results/
+test_non_cabbage/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code settings
+.vscode/
+
+# Temporary files
+*.tmp
+*.temp
