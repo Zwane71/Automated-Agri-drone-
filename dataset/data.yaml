@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['cabbage']
+
+roboflow:
+  workspace: project-e9doz
+  project: cabbage-17nd7
+  version: 2
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/project-e9doz/cabbage-17nd7/dataset/2

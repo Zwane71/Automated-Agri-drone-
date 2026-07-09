@@ -1,9 +1,9 @@
 # Python virtual environment
 env/
-.venv/
 venv/
+.venv/
 
-# Python cache files
+# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
@@ -13,27 +13,44 @@ __pycache__/
 
 # YOLO training outputs
 runs/
-#*.pt
+results/
+
+# YOLO datasets (usually large)
+dataset/images/
+dataset/labels/
 
 # Model weights (large files)
-models/*.pt
+#*.pt
+*.pth
+*.onnx
 
-# Dataset (usually too large for GitHub)
-dataset/
-
-# Prediction outputs
-results/
+# Uploaded test images
 test_non_cabbage/
+uploads/
+outputs/
 
 # Logs
 *.log
+
+# Environment variables
+.env
+.env.*
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# VS Code settings
+# VS Code
 .vscode/
+
+# Node / Next.js (future frontend)
+node_modules/
+.next/
+out/
+
+# Build files
+dist/
+build/
 
 # Temporary files
 *.tmp
