@@ -25,7 +25,7 @@ app.add_middleware(
 
 # Load trained cabbage model once
 model = YOLO(
-    "models/best.pt"
+    "models/yolo11n.pt"
 )
 
 
