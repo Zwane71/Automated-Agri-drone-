@@ -1,8 +1,13 @@
+import os
+
+os.environ["YOLO_CONFIG_DIR"] = "/tmp"
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 import cv2
 import numpy as np
+
 
 
 app = FastAPI(
@@ -24,9 +29,7 @@ app.add_middleware(
 
 
 # Load trained cabbage model once
-model = YOLO(
-    "models/yolo11n.pt"
-)
+model = YOLO("models/yolo11n.pt")
 
 
 
@@ -73,10 +76,11 @@ async def detect(
 
 
         # Run YOLO inference
-        results = model(
+        results = model.predict(
             frame,
-            imgsz=320,
-            conf=0.4,
+            imgsz=256,
+            conf=0.5,
+            device="cpu"
             verbose=False
         )
 
