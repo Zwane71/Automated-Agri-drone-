@@ -15,7 +15,7 @@ app = FastAPI(
 # Allow Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://automated-agri-drone.vercel.app/"],  # change to your frontend URL in production
+    allow_origins=["https://automated-agri-drone.vercel.app"],  # change to your frontend URL in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
