@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@ngrok/ngrok": "^1.7.0",
     "react-webcam": "^7.2.0"
   }
 }
