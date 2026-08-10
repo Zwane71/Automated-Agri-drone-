@@ -80,7 +80,7 @@ async def detect(
             frame,
             imgsz=256,
             conf=0.5,
-            device="cpu"
+            device="cpu",
             verbose=False
         )
 
