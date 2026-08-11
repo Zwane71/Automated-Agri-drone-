@@ -1,5 +1,7 @@
 import os
 
+from sympy import python
+
 os.environ["YOLO_CONFIG_DIR"] = "/tmp"
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
@@ -29,7 +31,7 @@ app.add_middleware(
 
 
 # Load trained cabbage model once
-model = YOLO("models/yolo11n.pt")
+model = YOLO("models/best.pt")
 
 
 
@@ -45,27 +47,23 @@ def home():
 
 
 @app.post("/detect")
-async def detect(
-    file: UploadFile = File(...)
-):
+async def detect(file: UploadFile = File(...)):
 
     try:
-
         # Read uploaded image
         image_bytes = await file.read()
 
-
+        # Convert bytes to numpy array
         np_image = np.frombuffer(
             image_bytes,
             np.uint8
         )
 
-
+        # Decode image
         frame = cv2.imdecode(
             np_image,
             cv2.IMREAD_COLOR
         )
-
 
         if frame is None:
             raise HTTPException(
@@ -73,38 +71,26 @@ async def detect(
                 detail="Invalid image"
             )
 
+        # Get actual image dimensions
+        image_height, image_width = frame.shape[:2]
 
-
-        # Run YOLO inference
-        results = model.predict(
+        # Run YOLO
+        results = model(
             frame,
-            imgsz=256,
-            conf=0.5,
-            device="cpu",
+            imgsz=320,
+            conf=0.4,
             verbose=False
         )
 
-
-
         detections = []
-
-
 
         for result in results:
 
-
             for box in result.boxes:
 
+                confidence = float(box.conf[0])
 
-                confidence = float(
-                    box.conf[0]
-                )
-
-
-                class_id = int(
-                    box.cls[0]
-                )
-
+                class_id = int(box.cls[0])
 
                 class_name = (
                     model.names[class_id]
@@ -112,47 +98,35 @@ async def detect(
                     else "unknown"
                 )
 
-
-
                 x1, y1, x2, y2 = map(
                     int,
                     box.xyxy[0]
                 )
 
-
-
                 detections.append({
-
                     "class": class_name,
-
-                    "confidence":
-                        round(confidence, 3),
-
+                    "confidence": round(confidence, 3),
                     "box": [
                         x1,
                         y1,
                         x2,
                         y2
                     ]
-
                 })
 
-
-
         return {
+            "count": len(detections),
 
-            "count":
-                len(detections),
+            "image_width": image_width,
+            "image_height": image_height,
 
-            "detections":
-                detections
-
+            "detections": detections
         }
 
-
+    except HTTPException:
+        raise
 
     except Exception as e:
-
         raise HTTPException(
             status_code=500,
             detail=str(e)

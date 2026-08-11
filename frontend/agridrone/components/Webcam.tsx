@@ -6,151 +6,425 @@ import Webcam from "react-webcam";
 interface Detection {
   class: string;
   confidence: number;
-  box: number[];
+  box: [number, number, number, number];
 }
 
 interface DetectionResult {
   count: number;
+  image_width: number;
+  image_height: number;
   detections: Detection[];
 }
 
 export default function Camera() {
   const webcamRef = useRef<Webcam>(null);
 
-  const [result, setResult] = useState<DetectionResult | null>(null);
-  const [detecting, setDetecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] =
+    useState<DetectionResult | null>(null);
+
+  const [detecting, setDetecting] =
+    useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
+
 
   async function detectObjects() {
-    // Prevent overlapping requests
+
+    // Prevent overlapping AI requests
     if (detecting) return;
 
     if (!webcamRef.current) return;
 
     try {
+
       setDetecting(true);
       setError(null);
 
-      const image = webcamRef.current.getScreenshot();
+
+      // Capture current camera frame
+      const image =
+        webcamRef.current.getScreenshot();
 
       if (!image) return;
 
-      const blob = await fetch(image).then((res) => res.blob());
 
-      const formData = new FormData();
+      // Convert screenshot to Blob
+      const blob =
+        await fetch(image).then(
+          (res) => res.blob()
+        );
 
-      formData.append("file", blob, "frame.jpg");
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/detect`,
-        {
-          method: "POST",
-          body: formData,
-        }
+      // Prepare request
+      const formData =
+        new FormData();
+
+      formData.append(
+        "file",
+        blob,
+        "frame.jpg"
       );
 
+
+      // Send frame to FastAPI
+      const response =
+        await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/detect`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+
       if (!response.ok) {
-        throw new Error(`AI server returned ${response.status}`);
+        throw new Error(
+          `AI server returned ${response.status}`
+        );
       }
 
-      const data: DetectionResult = await response.json();
+
+      // Get detection results
+      const data: DetectionResult =
+        await response.json();
+
 
       setResult(data);
-    } catch (err) {
-      console.error("Detection error:", err);
 
-      setError("Unable to connect to AI backend");
+    } catch (err) {
+
+      console.error(
+        "Detection error:",
+        err
+      );
+
+      setError(
+        "Unable to connect to AI backend"
+      );
+
     } finally {
+
       setDetecting(false);
+
     }
   }
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      detectObjects();
-    }, 1500);
 
-    return () => clearInterval(interval);
+  // Run detection every 1.5 seconds
+  useEffect(() => {
+
+    const interval =
+      setInterval(() => {
+
+        detectObjects();
+
+      }, 1500);
+
+
+    return () => {
+      clearInterval(interval);
+    };
+
   }, [detecting]);
 
+
   return (
+
     <div className="flex flex-col gap-4">
 
-      {/* Camera */}
-      <div className="relative">
+
+      {/* CAMERA */}
+      <div
+        className="
+          relative
+          w-full
+          max-w-2xl
+          overflow-hidden
+          rounded-xl
+        "
+      >
 
         <Webcam
           ref={webcamRef}
           audio={false}
           screenshotFormat="image/jpeg"
+
           videoConstraints={{
             facingMode: "environment",
             width: 640,
             height: 640,
           }}
-          className="rounded-xl"
+
+          className="
+            w-full
+            rounded-xl
+          "
         />
 
-        {/* AI Status */}
-        <div className="absolute top-3 left-3 bg-black/70 text-white px-3 py-1 rounded">
-          {detecting ? "AI scanning..." : "Live AI"}
-        </div>
 
-      </div>
+        {/* BOUNDING BOXES */}
 
+        {result?.detections.map(
+          (detection, index) => {
 
-      {/* Detection Results */}
-      {result && (
-        <div className="bg-black text-white p-4 rounded-xl">
-
-          <h2 className="font-bold text-lg mb-2">
-            Detection Results
-          </h2>
-
-          {/* Total quantity */}
-          <p className="mb-3">
-            Objects detected:{" "}
-            <span className="font-bold">
-              {result.count}
-            </span>
-          </p>
+            const [
+              x1,
+              y1,
+              x2,
+              y2
+            ] = detection.box;
 
 
-          {/* Individual detections */}
-          <div className="flex flex-col gap-2">
+            /*
+             * Convert actual YOLO coordinates
+             * into percentages.
+             */
 
-            {result.detections.map((item, index) => (
+            const left =
+              (x1 /
+                result.image_width) *
+              100;
+
+            const top =
+              (y1 /
+                result.image_height) *
+              100;
+
+            const width =
+              ((x2 - x1) /
+                result.image_width) *
+              100;
+
+            const height =
+              ((y2 - y1) /
+                result.image_height) *
+              100;
+
+
+            return (
+
               <div
                 key={index}
-                className="bg-gray-800 p-2 rounded"
+
+                className="
+                  absolute
+                  border-2
+                  border-green-500
+                  pointer-events-none
+                "
+
+                style={{
+                  left: `${left}%`,
+                  top: `${top}%`,
+                  width: `${width}%`,
+                  height: `${height}%`,
+                }}
               >
 
-                <div className="flex justify-between">
+                {/* DETECTION LABEL */}
 
-                  <span className="font-medium capitalize">
-                    {item.class}
-                  </span>
+                <div
+                  className="
+                    absolute
+                    -top-7
+                    left-0
+                    whitespace-nowrap
+                    rounded
+                    bg-green-500
+                    px-2
+                    py-1
+                    text-xs
+                    font-bold
+                    text-black
+                  "
+                >
 
-                  <span>
-                    {(item.confidence * 100).toFixed(1)}%
-                  </span>
+                  {detection.class}
+
+                  {" "}
+
+                  {(
+                    detection.confidence *
+                    100
+                  ).toFixed(1)}
+
+                  %
 
                 </div>
 
               </div>
-            ))}
+
+            );
+
+          }
+        )}
+
+
+        {/* AI STATUS */}
+
+        <div
+          className="
+            absolute
+            top-3
+            left-3
+            rounded
+            bg-black/70
+            px-3
+            py-1
+            text-sm
+            text-white
+          "
+        >
+
+          {detecting
+            ? "AI scanning..."
+            : "Live AI"
+          }
+
+        </div>
+
+
+        {/* OBJECT COUNT */}
+
+        {result && (
+
+          <div
+            className="
+              absolute
+              bottom-3
+              left-3
+              rounded-lg
+              bg-black/70
+              px-3
+              py-2
+              text-white
+            "
+          >
+
+            Objects detected:
+
+            {" "}
+
+            <span className="font-bold">
+              {result.count}
+            </span>
+
+          </div>
+
+        )}
+
+      </div>
+
+
+      {/* DETECTION RESULTS */}
+
+      {result && (
+
+        <div
+          className="
+            rounded-xl
+            bg-black
+            p-4
+            text-white
+          "
+        >
+
+          <h2
+            className="
+              mb-3
+              text-lg
+              font-bold
+            "
+          >
+            Detection Results
+          </h2>
+
+
+          <p className="mb-3">
+
+            Objects detected:
+
+            {" "}
+
+            <strong>
+              {result.count}
+            </strong>
+
+          </p>
+
+
+          {/* ALL DETECTED OBJECTS */}
+
+          <div className="flex flex-col gap-2">
+
+            {result.detections.map(
+              (item, index) => (
+
+                <div
+                  key={index}
+
+                  className="
+                    rounded
+                    bg-gray-800
+                    p-2
+                  "
+                >
+
+                  <div
+                    className="
+                      flex
+                      justify-between
+                    "
+                  >
+
+                    <span
+                      className="
+                        font-medium
+                        capitalize
+                      "
+                    >
+                      {item.class}
+                    </span>
+
+
+                    <span>
+                      {(
+                        item.confidence *
+                        100
+                      ).toFixed(1)}
+                      %
+                    </span>
+
+                  </div>
+
+                </div>
+
+              )
+            )}
 
           </div>
 
         </div>
+
       )}
 
 
-      {/* Error */}
+      {/* ERROR */}
+
       {error && (
-        <div className="bg-red-600 text-white p-3 rounded">
+
+        <div
+          className="
+            rounded
+            bg-red-600
+            p-3
+            text-white
+          "
+        >
           {error}
         </div>
+
       )}
 
     </div>
