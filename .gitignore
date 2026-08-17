@@ -16,8 +16,8 @@ runs/
 results/
 
 # YOLO datasets (usually large)
-dataset/images/
-dataset/labels/
+dataset/
+
 
 # Model weights (large files)
 #*.pt
