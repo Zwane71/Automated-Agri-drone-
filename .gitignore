@@ -20,7 +20,7 @@ dataset/
 
 
 # Model weights (large files)
-#*.pt
+*.pt
 *.pth
 *.onnx
 
