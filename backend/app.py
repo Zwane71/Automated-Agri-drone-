@@ -10,6 +10,23 @@ from ultralytics import YOLO
 import cv2
 import numpy as np
 
+from huggingface_hub import hf_hub_download
+
+
+MODEL_REPO = "MakZwane/automated-agri-drone-models"
+
+cabbage_model_path = hf_hub_download(
+    repo_id=MODEL_REPO,
+    filename="mangethev1.pt"
+)
+
+disease_model_path = hf_hub_download(
+    repo_id=MODEL_REPO,
+    filename="cabbage_disease_seg_v1.pt"
+)
+
+cabbage_model = YOLO(cabbage_model_path)
+disease_model = YOLO(disease_model_path)
 
 app = FastAPI(
     title="Automated Agri Drone AI API",
@@ -35,10 +52,10 @@ app.add_middleware(
 # ============================================================
 
 # Cabbage detection model
-cabbage_model = YOLO("models/mangethev1.pt")
+cabbage_model = YOLO(cabbage_model_path)
 
 # Cabbage disease segmentation model
-disease_model = YOLO("models/cabbage_disease_seg_v1.pt")
+disease_model = YOLO(disease_model_path)
 
 
 # Disease class names
