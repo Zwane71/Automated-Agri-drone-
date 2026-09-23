@@ -1,3 +1,4 @@
+from datetime import time
 import os
 
 os.environ["YOLO_CONFIG_DIR"] = "/tmp"
@@ -290,17 +291,38 @@ async def detect_crops_endpoint(
     file: UploadFile = File(...)
 ):
     try:
+        total_start = time.perf_counter()
+
         frame = await read_image(file)
+
+        read_time = time.perf_counter()
 
         image_height, image_width = frame.shape[:2]
 
         crops = detect_crops(frame)
+
+        inference_time = time.perf_counter()
 
         return {
             "image_width": image_width,
             "image_height": image_height,
             "crop_count": len(crops),
             "crops": crops,
+
+            "timing": {
+                "image_read_seconds": round(
+                    read_time - total_start,
+                    3
+                ),
+                "model_seconds": round(
+                    inference_time - read_time,
+                    3
+                ),
+                "total_seconds": round(
+                    inference_time - total_start,
+                    3
+                )
+            }
         }
 
     except HTTPException:
@@ -311,7 +333,6 @@ async def detect_crops_endpoint(
             status_code=500,
             detail=str(e),
         )
-
 
 # ============================================================
 # 2. DISEASE SEGMENTATION
