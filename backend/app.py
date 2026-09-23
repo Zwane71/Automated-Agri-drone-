@@ -1,4 +1,4 @@
-from datetime import time
+import time as timer
 import os
 
 os.environ["YOLO_CONFIG_DIR"] = "/tmp"
@@ -37,15 +37,7 @@ crops_model = YOLO(crops_model_path)
 disease_model = YOLO(disease_model_path)
 
 
-# ============================================================
-# DISEASE CLASSES
-# ============================================================
 
-DISEASE_NAMES = {
-    0: "Alternaria leaf spot",
-    1: "Black rot",
-    2: "Downy mildew",
-}
 
 
 # ============================================================
@@ -181,9 +173,10 @@ def segment_disease(frame):
             confidence = float(box.conf[0])
             class_id = int(box.cls[0])
 
-            disease_name = DISEASE_NAMES.get(
-                class_id,
-                "unknown",
+            disease_name = (
+                disease_model.names[class_id]
+                if class_id in disease_model.names
+                else "unknown"
             )
 
             x1, y1, x2, y2 = map(
@@ -291,17 +284,17 @@ async def detect_crops_endpoint(
     file: UploadFile = File(...)
 ):
     try:
-        total_start = time.perf_counter()
+        total_start = timer.perf_counter()
 
         frame = await read_image(file)
 
-        read_time = time.perf_counter()
+        read_time = timer.perf_counter()
 
         image_height, image_width = frame.shape[:2]
 
         crops = detect_crops(frame)
 
-        inference_time = time.perf_counter()
+        inference_time = timer.perf_counter()
 
         return {
             "image_width": image_width,

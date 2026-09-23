@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Camera from "../components/Webcam";
+import Camera from "../components/Camera/Webcam";
 
 export default function Home() {
   return (
