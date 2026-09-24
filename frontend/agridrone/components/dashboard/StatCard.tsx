@@ -5,7 +5,7 @@ export default function StatCard({
   icon,
 }: {
   label: string;
-  value: string;
+  value: string | number;
   change: string;
   icon: React.ReactNode;
 }) {
