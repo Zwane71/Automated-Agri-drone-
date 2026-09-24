@@ -3,8 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, CircleAlert, Loader2, Play, Square } from "lucide-react";
 
-import { detectCrops } from "@/lib/api";
-import type { CropDetection } from "./types";
+import { 
+    detectCrops,
+    segmentDisease
+ } from "@/lib/api";
+import type { 
+    CropDetection,
+    DiseaseDetection
+ } from "./types";
 
 interface LiveCropCameraProps {
   onDetection?: (crops: CropDetection[]) => void;
@@ -19,6 +25,9 @@ export default function LiveCropCamera({
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const processingRef = useRef(false);
+
+  const [diseases, setDiseases] =
+  useState<DiseaseDetection[]>([]);
 
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -107,7 +116,18 @@ export default function LiveCropCamera({
 
       if (!blob) return;
 
-      const result = await detectCrops(blob);
+     const result = await detectCrops(blob);
+
+        setCrops(result.crops);
+        onDetection?.(result.crops);
+
+        const diseaseResult =
+        await segmentDisease(blob);
+
+        setDiseases(
+        diseaseResult.diseases
+        );
+      
 
       setCrops(result.crops);
       onDetection?.(result.crops);
