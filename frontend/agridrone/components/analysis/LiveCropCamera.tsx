@@ -22,7 +22,10 @@ import type {
 } from "./types";
 
 interface LiveCropCameraProps {
-  onDetection?: (crops: CropDetection[]) => void;
+  onDetection?: (
+    crops: CropDetection[],
+    diseases: DiseaseDetection[]
+  ) => void;
 }
 
 export default function LiveCropCamera({
@@ -157,25 +160,23 @@ export default function LiveCropCamera({
 
       if (!blob) return;
 
-      /*
-       * 1. Detect crops
-       */
+      // 1. Detect crops
       const cropResult =
         await detectCrops(blob);
 
       setCrops(cropResult.crops);
 
-      onDetection?.(
-        cropResult.crops
-      );
-
-      /*
-       * 2. Detect diseases
-       */
+      // 2. Detect diseases
       const diseaseResult =
         await segmentDisease(blob);
 
       setDiseases(
+        diseaseResult.diseases
+      );
+
+      // Send both results to the dashboard
+      onDetection?.(
+        cropResult.crops,
         diseaseResult.diseases
       );
     } catch (err) {
@@ -198,17 +199,14 @@ export default function LiveCropCamera({
   useEffect(() => {
     if (!running) return;
 
-    /*
-     * Run AI every 3 seconds.
-     *
-     * The camera itself remains live.
-     * AI analysis happens periodically.
-     */
+    // Run AI every 3 seconds.
+    // The camera itself remains live.
     intervalRef.current =
       setInterval(() => {
         captureAndDetect();
       }, 3000);
 
+    // Run immediately when camera starts
     captureAndDetect();
 
     return () => {
@@ -282,16 +280,12 @@ export default function LiveCropCamera({
           <>
             {/* LIVE indicator */}
             <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-red-400/20 bg-black/60 px-3 py-1.5 text-xs backdrop-blur">
-
               <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-
               LIVE
-
             </div>
 
             {/* AI status */}
             <div className="absolute right-4 top-4 rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-xs backdrop-blur">
-
               <div className="flex items-center gap-2">
 
                 {loading ? (
@@ -313,12 +307,10 @@ export default function LiveCropCamera({
                 )}
 
               </div>
-
             </div>
 
             {/* Crop detection boxes */}
             {crops.map((crop) => {
-
               const [
                 x1,
                 y1,
@@ -364,8 +356,7 @@ export default function LiveCropCamera({
                   <div className="absolute -top-6 left-0 rounded bg-emerald-400 px-2 py-0.5 text-[10px] font-semibold text-black">
                     {crop.crop}{" "}
                     {(
-                      crop.confidence *
-                      100
+                      crop.confidence * 100
                     ).toFixed(0)}
                     %
                   </div>
@@ -376,7 +367,6 @@ export default function LiveCropCamera({
             {/* Disease detection boxes */}
             {diseases.map(
               (disease, index) => {
-
                 const [
                   x1,
                   y1,
@@ -393,12 +383,10 @@ export default function LiveCropCamera({
                     ?.videoHeight || 1;
 
                 const left =
-                  (x1 / videoWidth) *
-                  100;
+                  (x1 / videoWidth) * 100;
 
                 const top =
-                  (y1 / videoHeight) *
-                  100;
+                  (y1 / videoHeight) * 100;
 
                 const width =
                   ((x2 - x1) /
@@ -440,11 +428,8 @@ export default function LiveCropCamera({
       {/* Error */}
       {error && (
         <div className="flex items-center gap-2 rounded-lg border border-red-400/20 bg-red-400/10 p-3 text-sm text-red-300">
-
           <CircleAlert className="h-4 w-4" />
-
           {error}
-
         </div>
       )}
 
@@ -486,4 +471,3 @@ export default function LiveCropCamera({
     </div>
   );
 }
-

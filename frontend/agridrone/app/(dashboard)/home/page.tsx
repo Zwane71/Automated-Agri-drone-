@@ -19,6 +19,7 @@ import { analyzeFull } from "@/lib/api";
 import type {
   AnalysisResult,
   CropDetection,
+  DiseaseDetection,
 } from "@/components/analysis/types";
 
 export default function DashboardPage() {
@@ -42,6 +43,9 @@ export default function DashboardPage() {
 
   const diseaseCount =
     analysis?.disease_count ?? 0;
+
+  const [liveDiseases, setLiveDiseases] =
+  useState<DiseaseDetection[]>([]);
 
   const handleImageUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -92,8 +96,9 @@ export default function DashboardPage() {
           </div>
 
           <LiveCropCamera
-            onDetection={(crops) => {
+            onDetection={(crops, diseases) => {
               setLiveCrops(crops);
+              setLiveDiseases(diseases);
             }}
           />
         </div>
