@@ -25,7 +25,7 @@ crops_model_path = hf_hub_download(
 
 disease_model_path = hf_hub_download(
     repo_id=MODEL_REPO,
-    filename="cabbage_disease_seg_v1.pt"
+    filename="cabbage_seg_v2.pt"
 )
 
 
