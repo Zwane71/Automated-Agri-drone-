@@ -1,19 +1,23 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
-  Activity,
-  CircleAlert,
-  Crosshair,
+  AlertCircle,
+  CheckCircle2,
+  FileImage,
+  Loader2,
+  MapPin,
   Sprout,
+   ArrowRight,
+  Camera,
 } from "lucide-react";
 
+import Link from "next/link";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import PageHeader from "@/components/dashboard/PageHeader";
 import StatCard from "@/components/dashboard/StatCard";
-import LiveCropCamera from "@/components/analysis/LiveCropCamera";
 
 import { analyzeFull } from "@/lib/api";
 
@@ -22,495 +26,398 @@ import type {
   CropDetection,
   DiseaseDetection,
 } from "@/components/analysis/types";
+import DashboardOverview from "@/components/dashboard/DashboardOverview";
+import DashboardCamera from "@/components/dashboard/DashboardCamera";
 
-export default function DashboardPage() {
-  const [analysis, setAnalysis] =
-    useState<AnalysisResult | null>(null);
+export default function HomePage() {
+  const [result, setResult] = useState<AnalysisResult | null>(
+    null
+  );
+  const [cameraCount, setCameraCount] = useState(0);
 
-  const [analyzing, setAnalyzing] =
-    useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const diseaseSummary = useMemo(() => {
+    if (!result) return {};
 
-  const [liveCrops, setLiveCrops] =
-    useState<CropDetection[]>([]);
-
-  const [liveDiseases, setLiveDiseases] =
-    useState<DiseaseDetection[]>([]);
-
-  /*
-   * Calculate average confidence
-   * from the current live disease detections.
-   */
-  const averageLiveConfidence =
-    liveDiseases.length > 0
-      ? Math.round(
-          (liveDiseases.reduce(
-            (sum, disease) =>
-              sum + disease.confidence,
-            0
-          ) /
-            liveDiseases.length) *
-            100
-        )
-      : 0;
-
-  /*
-   * Group live diseases by model name.
-   *
-   * We use the name returned by the backend
-   * instead of hard-coding disease mappings.
-   */
-  const liveDiseaseSummary = useMemo(() => {
     const summary: Record<string, number> = {};
 
-    liveDiseases.forEach((disease) => {
-      summary[disease.disease] =
-        (summary[disease.disease] || 0) + 1;
+    result.crops.forEach((crop) => {
+      crop.diseases.forEach((disease) => {
+        summary[disease.disease] =
+          (summary[disease.disease] || 0) + 1;
+      });
     });
 
-    return Object.entries(summary).sort(
-      ([, countA], [, countB]) =>
-        countB - countA
-    );
-  }, [liveDiseases]);
+    return summary;
+  }, [result]);
 
-  /*
-   * Upload image for detailed analysis.
-   */
-  const handleImageUpload = async (
+  const averageCropConfidence = useMemo(() => {
+    if (!result || result.crops.length === 0) return 0;
+
+    const total = result.crops.reduce(
+      (sum, crop) => sum + crop.confidence,
+      0
+    );
+
+    return total / result.crops.length;
+  }, [result]);
+
+  const averageDiseaseConfidence = useMemo(() => {
+    if (!result || result.disease_count === 0) return 0;
+
+    const diseases: DiseaseDetection[] = result.crops.flatMap(
+      (crop) => crop.diseases
+    );
+
+    if (diseases.length === 0) return 0;
+
+    const total = diseases.reduce(
+      (sum, disease) => sum + disease.confidence,
+      0
+    );
+
+    return total / diseases.length;
+  }, [result]);
+
+  const handleUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
 
     if (!file) return;
 
-    setAnalyzing(true);
+    setLoading(true);
     setError(null);
+    setResult(null);
+    setFileName(file.name);
 
     try {
-      const result =
-        await analyzeFull(file);
+      const analysis = await analyzeFull(file);
 
-      setAnalysis(result);
+      setResult(analysis);
     } catch (err) {
       console.error(err);
 
       setError(
         err instanceof Error
           ? err.message
-          : "Failed to analyze image."
+          : "Failed to analyze the image."
       );
     } finally {
-      setAnalyzing(false);
+      setLoading(false);
 
-      /*
-       * Allow selecting the same image again.
-       */
       event.target.value = "";
     }
   };
 
+  useEffect(() => {
+  try {
+    const savedCameras =
+      localStorage.getItem(
+        "agri-drone-cameras"
+      );
+
+    if (!savedCameras) {
+      setCameraCount(0);
+      return;
+    }
+
+    const cameras = JSON.parse(
+      savedCameras
+    );
+
+    if (Array.isArray(cameras)) {
+      setCameraCount(cameras.length);
+    }
+  } catch {
+    setCameraCount(0);
+  }
+}, []);
   return (
     <DashboardShell>
       <div className="space-y-6 p-5 md:p-8">
-
-        {/* Page header */}
-
         <PageHeader
-          title="Field Monitoring"
-          description="Monitor your agricultural operations and AI analysis."
+          title="Dashboard"
+          description="Monitor crops, disease detection, and agricultural field activity."
         />
 
-        {/* Live AI Camera */}
+        {/* Overview */}
+        <DashboardOverview
+          cropCount={result?.crop_count ?? 0}
+          diseasedCropCount={
+            result?.diseased_crop_count ?? 0
+          }
+          diseaseCount={
+            result?.disease_count ?? 0
+          }
+          cameraCount={cameraCount}
+        />
+        <DashboardCamera
+          cameraCount={cameraCount}
+        />
 
+        {/* AI Analysis */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-
-          <div className="mb-5">
-            <h2 className="text-lg font-semibold">
-              Live AI Camera
-            </h2>
-
-            <p className="mt-1 text-sm text-white/40">
-              Real-time crop and disease detection from your camera.
-            </p>
-          </div>
-
-          <LiveCropCamera
-            onDetection={(crops, diseases) => {
-              setLiveCrops(crops);
-              setLiveDiseases(diseases);
-            }}
-          />
-
-        </div>
-
-        {/* Live statistics */}
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-
-          <StatCard
-            label="Live Crops"
-            value={liveCrops.length}
-            change={
-              liveCrops.length > 0
-                ? "Detected by AI"
-                : "Waiting for camera"
-            }
-            icon={
-              <Sprout className="h-5 w-5" />
-            }
-          />
-
-          <StatCard
-            label="Live Diseases"
-            value={liveDiseases.length}
-            change={
-              liveDiseases.length > 0
-                ? "Current detections"
-                : "No detections"
-            }
-            icon={
-              <CircleAlert className="h-5 w-5" />
-            }
-          />
-
-          <StatCard
-            label="AI Confidence"
-            value={`${averageLiveConfidence}%`}
-            change={
-              liveDiseases.length > 0
-                ? "Average disease confidence"
-                : "Waiting for detection"
-            }
-            icon={
-              <Activity className="h-5 w-5" />
-            }
-          />
-
-          <StatCard
-            label="AI Status"
-            value={
-              analyzing
-                ? "Running"
-                : "Online"
-            }
-            change={
-              analyzing
-                ? "AI analysis in progress"
-                : "AI engine connected"
-            }
-            icon={
-              <Crosshair className="h-5 w-5" />
-            }
-          />
-
-        </div>
-
-        {/* Live disease breakdown */}
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-
-          <div className="mb-5">
-            <h2 className="text-lg font-medium">
-              Live Disease Detection
-            </h2>
-
-            <p className="mt-1 text-sm text-white/40">
-              Diseases currently detected by the AI camera.
-            </p>
-          </div>
-
-          {liveDiseases.length === 0 ? (
-            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6 text-center">
-
-              <CircleAlert className="mx-auto mb-3 h-8 w-8 text-white/20" />
-
-              <p className="text-sm text-white/50">
-                No diseases detected
-              </p>
-
-              <p className="mt-1 text-xs text-white/30">
-                Start the camera and point it at crops.
-              </p>
-
-            </div>
-          ) : (
-            <div className="space-y-3">
-
-              {liveDiseaseSummary.map(
-                ([disease, count]) => (
-                  <div
-                    key={disease}
-                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] p-4"
-                  >
-
-                    <div className="flex items-center gap-3">
-
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-400/10">
-                        <CircleAlert className="h-4 w-4 text-red-400" />
-                      </div>
-
-                      <div>
-                        <p className="text-sm font-medium">
-                          {disease}
-                        </p>
-
-                        <p className="mt-1 text-xs text-white/40">
-                          Current AI detections
-                        </p>
-                      </div>
-
-                    </div>
-
-                    <div className="text-right">
-
-                      <p className="text-lg font-semibold">
-                        {count}
-                      </p>
-
-                      <p className="text-xs text-white/30">
-                        detections
-                      </p>
-
-                    </div>
-
-                  </div>
-                )
-              )}
-
-            </div>
-          )}
-
-        </div>
-
-        {/* Upload analysis */}
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-lg font-medium">
-                AI Field Analysis
-              </h2>
+              <div className="flex items-center gap-2">
+                <FileImage className="h-5 w-5 text-white/50" />
+
+                <h2 className="text-lg font-medium">
+                  AI Field Analysis
+                </h2>
+              </div>
 
               <p className="mt-1 text-sm text-white/40">
-                Upload a field image for detailed crop and disease analysis.
+                Upload a field image to detect crops and
+                analyze them for disease.
               </p>
+
+              {fileName && (
+                <p className="mt-2 text-xs text-white/30">
+                  Latest image: {fileName}
+                </p>
+              )}
             </div>
 
-            <label className="cursor-pointer rounded-xl bg-emerald-500 px-5 py-3 text-center text-sm font-medium text-black transition hover:bg-emerald-400">
-
-              {analyzing
-                ? "Analyzing..."
-                : "Upload Image"}
+            <label
+              className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-medium transition ${
+                loading
+                  ? "cursor-not-allowed bg-white/10 text-white/40"
+                  : "cursor-pointer bg-emerald-500 text-black hover:bg-emerald-400"
+              }`}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <FileImage className="h-4 w-4" />
+                  Analyze Image
+                </>
+              )}
 
               <input
                 type="file"
                 accept="image/*"
-                onChange={handleImageUpload}
-                disabled={analyzing}
+                onChange={handleUpload}
+                disabled={loading}
                 className="hidden"
               />
-
             </label>
-
           </div>
 
           {error && (
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-300">
+            <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
 
-              <CircleAlert className="h-4 w-4 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-red-300">
+                  Analysis failed
+                </p>
 
-              {error}
-
+                <p className="mt-1 text-sm text-red-300/70">
+                  {error}
+                </p>
+              </div>
             </div>
           )}
-
         </div>
 
-        {/* Latest analysis */}
+        {/* Analysis results */}
+        {result && (
+          <>
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                <p className="text-sm text-white/40">
+                  Image Size
+                </p>
 
-        {analysis && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                <p className="mt-2 text-2xl font-semibold">
+                  {result.image_width} ×{" "}
+                  {result.image_height}
+                </p>
+              </div>
 
-            <div className="mb-5">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                <p className="text-sm text-white/40">
+                  Crop Confidence
+                </p>
+
+                <p className="mt-2 text-2xl font-semibold">
+                  {(averageCropConfidence * 100).toFixed(1)}%
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                <p className="text-sm text-white/40">
+                  Disease Confidence
+                </p>
+
+                <p className="mt-2 text-2xl font-semibold">
+                  {result.disease_count > 0
+                    ? `${(
+                        averageDiseaseConfidence * 100
+                      ).toFixed(1)}%`
+                    : "—"}
+                </p>
+              </div>
+            </div>
+
+            {/* Disease summary */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
               <h2 className="text-lg font-medium">
-                Latest Analysis
+                Disease Summary
               </h2>
 
               <p className="mt-1 text-sm text-white/40">
-                Detailed results returned from the AgriDrone AI backend.
+                Disease findings returned by the AI model.
               </p>
+
+              {Object.keys(diseaseSummary).length === 0 ? (
+                <div className="mt-5 rounded-xl border border-dashed border-white/10 p-6 text-center">
+                  <p className="text-sm text-white/40">
+                    No disease findings were returned.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {Object.entries(diseaseSummary).map(
+                    ([disease, count]) => (
+                      <div
+                        key={disease}
+                        className="rounded-xl border border-white/10 bg-white/[0.02] p-4"
+                      >
+                        <p className="text-sm font-medium">
+                          {disease.replaceAll("_", " ")}
+                        </p>
+
+                        <p className="mt-2 text-2xl font-semibold">
+                          {count}
+                        </p>
+
+                        <p className="mt-1 text-xs text-white/30">
+                          finding{count === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Analysis summary */}
-
-            <div className="grid gap-4 md:grid-cols-3">
-
-              <div className="rounded-xl bg-white/[0.03] p-4">
-                <p className="text-xs text-white/40">
-                  Total Crops
-                </p>
-
-                <p className="mt-2 text-2xl font-semibold">
-                  {analysis.crop_count}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-white/[0.03] p-4">
-                <p className="text-xs text-white/40">
-                  Diseased Crops
-                </p>
-
-                <p className="mt-2 text-2xl font-semibold">
-                  {analysis.diseased_crop_count}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-white/[0.03] p-4">
-                <p className="text-xs text-white/40">
-                  Disease Detections
-                </p>
-
-                <p className="mt-2 text-2xl font-semibold">
-                  {analysis.disease_count}
-                </p>
-              </div>
-
-            </div>
-
-            {/* Individual crop results */}
-
-            <div className="mt-6">
-
-              <h3 className="mb-3 text-sm font-medium text-white/70">
+            {/* Crop analysis */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+              <h2 className="text-lg font-medium">
                 Crop Analysis
-              </h3>
+              </h2>
 
-              <div className="space-y-3">
+              <p className="mt-1 text-sm text-white/40">
+                Individual crop detections and associated
+                disease findings.
+              </p>
 
-                {analysis.crops.map(
-                  (crop) => (
+              <div className="mt-5 space-y-3">
+                {result.crops.map(
+                  (crop: CropDetection) => (
                     <div
                       key={crop.crop_id}
                       className="rounded-xl border border-white/10 bg-white/[0.02] p-4"
                     >
-
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div>
-
-                          <div className="flex items-center gap-2">
-
-                            <span className="rounded-md bg-emerald-400/10 px-2 py-1 text-xs font-medium text-emerald-400">
-                              Crop #{crop.crop_id}
-                            </span>
-
-                            <span className="text-sm font-medium">
-                              {crop.crop}
-                            </span>
-
-                          </div>
-
-                          <p className="mt-2 text-xs text-white/40">
-                            Crop confidence:{" "}
-                            {(
-                              crop.confidence * 100
-                            ).toFixed(0)}
-                            %
-                          </p>
-
-                        </div>
-
-                        <div className="text-left md:text-right">
-
-                          <p className="text-sm font-medium">
-                            {crop.disease_count}{" "}
-                            disease{" "}
-                            {crop.disease_count === 1
-                              ? "detection"
-                              : "detections"}
+                          <p className="font-medium capitalize">
+                            {crop.crop}
                           </p>
 
                           <p className="mt-1 text-xs text-white/30">
-                            {crop.disease_count > 0
-                              ? "Disease detected"
-                              : "No disease detected"}
+                            Crop #{crop.crop_id} ·{" "}
+                            {(
+                              crop.confidence * 100
+                            ).toFixed(1)}
+                            % confidence
                           </p>
-
                         </div>
 
+                        <div className="text-sm text-white/40">
+                          {crop.disease_count} disease{" "}
+                          {crop.disease_count === 1
+                            ? "finding"
+                            : "findings"}
+                        </div>
                       </div>
-
-                      {/* Diseases for this crop */}
 
                       {crop.diseases.length > 0 && (
                         <div className="mt-4 space-y-2">
-
                           {crop.diseases.map(
                             (
                               disease,
                               index
                             ) => (
                               <div
-                                key={`${crop.crop_id}-${index}`}
-                                className="flex flex-col gap-2 rounded-lg bg-red-400/[0.05] p-3 sm:flex-row sm:items-center sm:justify-between"
+                                key={`${crop.crop_id}-${disease.disease}-${index}`}
+                                className="flex flex-col gap-2 rounded-lg border border-red-400/10 bg-red-400/[0.03] p-3 md:flex-row md:items-center md:justify-between"
                               >
-
                                 <div>
-                                  <p className="text-sm text-red-300">
-                                    {disease.disease}
+                                  <p className="text-sm capitalize">
+                                    {disease.disease.replaceAll(
+                                      "_",
+                                      " "
+                                    )}
                                   </p>
 
                                   {disease.affected_area_percent !==
                                     undefined && (
-                                    <p className="mt-1 text-xs text-white/40">
+                                    <p className="mt-1 text-xs text-white/30">
                                       Affected area:{" "}
                                       {disease.affected_area_percent.toFixed(
-                                        1
+                                        2
                                       )}
                                       %
                                     </p>
                                   )}
                                 </div>
 
-                                <div className="text-left sm:text-right">
-
-                                  <p className="text-sm font-semibold">
-                                    {(
-                                      disease.confidence *
-                                      100
-                                    ).toFixed(0)}
-                                    %
-                                  </p>
-
-                                  <p className="text-xs text-white/30">
-                                    confidence
-                                  </p>
-
-                                </div>
-
+                                <span className="text-xs text-white/40">
+                                  {(
+                                    disease.confidence *
+                                    100
+                                  ).toFixed(1)}
+                                  % confidence
+                                </span>
                               </div>
                             )
                           )}
-
                         </div>
                       )}
-
                     </div>
                   )
                 )}
-
               </div>
-
             </div>
-
-          </div>
+          </>
         )}
 
+        {/* Empty state */}
+        {!result && !loading && !error && (
+          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
+            <Sprout className="mx-auto h-10 w-10 text-white/20" />
+
+            <h2 className="mt-4 text-lg font-medium">
+              No analysis yet
+            </h2>
+
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-white/40">
+              Upload an agricultural field image above to
+              start detecting crops and analyzing disease.
+            </p>
+          </div>
+        )}
       </div>
     </DashboardShell>
   );

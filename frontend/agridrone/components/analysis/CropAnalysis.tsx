@@ -27,9 +27,9 @@ export default function CropAnalysis({
           gap-2
         "
       >
-        {result.crops.map((crop) => (
+        {result.crops.map((crop, index) => (
           <CropResult
-            key={crop.crop_id}
+            key={`${crop.crop}-${crop.box.join("-")}`}
             crop={crop}
           />
         ))}

@@ -113,9 +113,9 @@ export async function analyzeFull(
 }
 
 /*
-  Keep this name because your current dashboard
-  already uses analyzeImage().
-*/
+ * Keep this name because the current
+ * dashboard already uses analyzeImage().
+ */
 
 export async function analyzeImage(
   file: Blob
@@ -127,11 +127,19 @@ export async function analyzeImage(
    CENSUS
 ========================= */
 
+export interface CensusCrop {
+  crop: string;
+  confidence: number;
+  box: [number, number, number, number];
+}
+
 export interface CensusResponse {
   image_width: number;
   image_height: number;
-  crop_count: number;
-  crops: CropDetection[];
+  total_crops: number;
+  crop_summary: Record<string, number>;
+  crops: CensusCrop[];
+  census_type: string;
   note?: string;
   timing?: {
     image_read_seconds?: number;
@@ -139,6 +147,10 @@ export interface CensusResponse {
     total_seconds?: number;
   };
 }
+
+/* =========================
+   CENSUS API
+========================= */
 
 export async function getCensus(
   file: Blob
@@ -169,4 +181,86 @@ export async function detectLegacy(
     "/detect",
     file
   );
+}
+
+export interface CameraTestResponse {
+  connected: boolean;
+  message: string;
+  image_width?: number;
+  image_height?: number;
+}
+
+
+export async function testCamera(
+  cameraUrl: string
+): Promise<CameraTestResponse> {
+  const params = new URLSearchParams({
+    camera_url: cameraUrl,
+  });
+
+  const response = await fetch(
+    `${API_URL}/api/v1/camera/test?${params.toString()}`
+  );
+
+  if (!response.ok) {
+    let message = "Camera test failed.";
+
+    try {
+      const data = await response.json();
+      message =
+        data?.detail ||
+        data?.message ||
+        message;
+    } catch {
+      // Keep default message.
+    }
+
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+
+export function getCameraStreamUrl(
+  cameraUrl: string
+): string {
+  const params = new URLSearchParams({
+    camera_url: cameraUrl,
+  });
+
+  return (
+    `${API_URL}/api/v1/camera/stream?` +
+    params.toString()
+  );
+}
+export async function analyzeCameraFrame(
+  cameraUrl: string
+): Promise<AnalysisResult> {
+  const params = new URLSearchParams({
+    camera_url: cameraUrl,
+  });
+
+  const response = await fetch(
+    `${API_URL}/api/v1/camera/analyze?${params.toString()}`
+  );
+
+  if (!response.ok) {
+    let message = "Camera AI analysis failed.";
+
+    try {
+      const data = await response.json();
+
+      message =
+        data?.detail ||
+        data?.message ||
+        message;
+    } catch {
+      // Keep default message.
+    }
+
+    throw new Error(message);
+  }
+
+  return response.json();
 }

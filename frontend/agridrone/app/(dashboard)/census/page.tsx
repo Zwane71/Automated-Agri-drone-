@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -17,28 +16,18 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import PageHeader from "@/components/dashboard/PageHeader";
 import StatCard from "@/components/dashboard/StatCard";
 
-import { getCensus,
-    type CensusResponse
- } from "@/lib/api";
+import { getCensus, type CensusResponse } from "@/lib/api";
 
 export default function CensusPage() {
-  const [result, setResult] =
-    useState<CensusResponse | null>(null);
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState<string | null>(null);
-
-  const [fileName, setFileName] =
-    useState<string | null>(null);
+  const [result, setResult] = useState<CensusResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
 
   const handleImageUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const file =
-      event.target.files?.[0];
+    const file = event.target.files?.[0];
 
     if (!file) return;
 
@@ -48,9 +37,7 @@ export default function CensusPage() {
     setFileName(file.name);
 
     try {
-      const census =
-        await getCensus(file);
-
+      const census = await getCensus(file);
       setResult(census);
     } catch (err) {
       console.error(err);
@@ -71,20 +58,15 @@ export default function CensusPage() {
   return (
     <DashboardShell>
       <div className="space-y-6 p-5 md:p-8">
-
         {/* Header */}
-
         <PageHeader
           title="Crop Census"
           description="Count and inspect crops detected from a field image."
         />
 
         {/* Census information */}
-
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-
           <div className="flex items-start gap-4">
-
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/10">
               <Sprout className="h-5 w-5 text-emerald-400" />
             </div>
@@ -99,27 +81,19 @@ export default function CensusPage() {
                 and count the crops visible in the image.
               </p>
             </div>
-
           </div>
-
         </div>
 
         {/* Upload */}
-
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-
             <div>
-
               <div className="flex items-center gap-2">
-
                 <ImageIcon className="h-4 w-4 text-white/50" />
 
                 <h2 className="text-base font-medium">
                   Field Image
                 </h2>
-
               </div>
 
               <p className="mt-1 text-sm text-white/40">
@@ -131,7 +105,6 @@ export default function CensusPage() {
                   Selected: {fileName}
                 </p>
               )}
-
             </div>
 
             <label
@@ -141,7 +114,6 @@ export default function CensusPage() {
                   : "bg-emerald-500 text-black hover:bg-emerald-400"
               }`}
             >
-
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -161,14 +133,11 @@ export default function CensusPage() {
                 disabled={loading}
                 className="hidden"
               />
-
             </label>
-
           </div>
 
           {error && (
             <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-300">
-
               <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
 
               <div>
@@ -180,23 +149,18 @@ export default function CensusPage() {
                   {error}
                 </p>
               </div>
-
             </div>
           )}
-
         </div>
 
         {/* Results */}
-
         {result && (
           <>
             {/* Statistics */}
-
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-
               <StatCard
                 label="Total Crops"
-                value={result.crop_count}
+                value={result.total_crops}
                 change="Detected in image"
                 icon={
                   <Sprout className="h-5 w-5" />
@@ -214,15 +178,8 @@ export default function CensusPage() {
 
               <StatCard
                 label="AI Processing"
-                value={
-                  result.timing?.total_seconds !==
-                  undefined
-                    ? `${result.timing.total_seconds.toFixed(
-                        1
-                      )}s`
-                    : "—"
-                }
-                change="Total processing time"
+                value="Completed"
+                change="Census analysis finished"
                 icon={
                   <CheckCircle2 className="h-5 w-5" />
                 }
@@ -236,19 +193,56 @@ export default function CensusPage() {
                   <MapPin className="h-5 w-5" />
                 }
               />
-
             </div>
 
+            {/* Crop summary */}
+            {Object.keys(result.crop_summary).length > 0 && (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                <div className="mb-5">
+                  <h2 className="text-lg font-medium">
+                    Crop Summary
+                  </h2>
+
+                  <p className="mt-1 text-sm text-white/40">
+                    Number of crops detected by type.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {Object.entries(result.crop_summary).map(
+                    ([cropName, count]) => (
+                      <div
+                        key={cropName}
+                        className="rounded-xl border border-white/10 bg-white/[0.02] p-4"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-400/10">
+                              <Sprout className="h-4 w-4 text-emerald-400" />
+                            </div>
+
+                            <p className="text-sm font-medium capitalize">
+                              {cropName}
+                            </p>
+                          </div>
+
+                          <p className="text-lg font-semibold">
+                            {count}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Census status */}
-
             <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-5">
-
               <div className="flex items-start gap-3">
-
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
 
                 <div>
-
                   <p className="text-sm font-medium text-emerald-300">
                     Census completed
                   </p>
@@ -256,40 +250,31 @@ export default function CensusPage() {
                   <p className="mt-1 text-sm text-white/40">
                     The AI detected{" "}
                     <span className="font-medium text-white/70">
-                      {result.crop_count}
+                      {result.total_crops}
                     </span>{" "}
                     crop
-                    {result.crop_count === 1
-                      ? ""
-                      : "s"} in this image.
+                    {result.total_crops === 1 ? "" : "s"} in
+                    this image.
                   </p>
-
                 </div>
-
               </div>
-
             </div>
 
             {/* Detection list */}
-
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-
               <div className="mb-5">
-
                 <h2 className="text-lg font-medium">
                   Detected Crops
                 </h2>
 
                 <p className="mt-1 text-sm text-white/40">
-                  Individual crop detections returned by
-                  the AI model.
+                  Individual crop detections returned by the
+                  AI model.
                 </p>
-
               </div>
 
               {result.crops.length === 0 ? (
                 <div className="rounded-xl border border-white/10 bg-white/[0.02] p-6 text-center">
-
                   <CircleAlert className="mx-auto mb-3 h-8 w-8 text-white/20" />
 
                   <p className="text-sm text-white/50">
@@ -299,113 +284,78 @@ export default function CensusPage() {
                   <p className="mt-1 text-xs text-white/30">
                     Try uploading a clearer field image.
                   </p>
-
                 </div>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2">
-
-                  {result.crops.map(
-                    (crop) => (
-                      <div
-                        key={crop.crop_id}
-                        className="rounded-xl border border-white/10 bg-white/[0.02] p-4"
-                      >
-
-                        <div className="flex items-center justify-between gap-4">
-
-                          <div className="flex items-center gap-3">
-
-                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-400/10">
-                              <Sprout className="h-4 w-4 text-emerald-400" />
-                            </div>
-
-                            <div>
-
-                              <p className="text-sm font-medium">
-                                Crop #{crop.crop_id}
-                              </p>
-
-                              <p className="mt-1 text-xs text-white/40">
-                                {crop.crop}
-                              </p>
-
-                            </div>
-
+                  {result.crops.map((crop, index) => (
+                    <div
+                      key={`${crop.crop}-${crop.box.join("-")}`}
+                      className="rounded-xl border border-white/10 bg-white/[0.02] p-4"
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-400/10">
+                            <Sprout className="h-4 w-4 text-emerald-400" />
                           </div>
 
-                          <div className="text-right">
-
-                            <p className="text-sm font-semibold">
-                              {(
-                                crop.confidence *
-                                100
-                              ).toFixed(0)}
-                              %
+                          <div>
+                            <p className="text-sm font-medium">
+                              Crop {index + 1}
                             </p>
 
-                            <p className="text-xs text-white/30">
-                              confidence
+                            <p className="mt-1 text-xs capitalize text-white/40">
+                              {crop.crop}
                             </p>
-
                           </div>
-
                         </div>
 
-                        <div className="mt-4">
+                        <div className="text-right">
+                          <p className="text-sm font-semibold">
+                            {(crop.confidence * 100).toFixed(0)}%
+                          </p>
 
-                          <div className="mb-1 flex justify-between text-xs">
-
-                            <span className="text-white/30">
-                              Detection confidence
-                            </span>
-
-                            <span className="text-white/50">
-                              {(
-                                crop.confidence *
-                                100
-                              ).toFixed(0)}
-                              %
-                            </span>
-
-                          </div>
-
-                          <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-
-                            <div
-                              className="h-full rounded-full bg-emerald-400"
-                              style={{
-                                width: `${Math.min(
-                                  crop.confidence *
-                                    100,
-                                  100
-                                )}%`,
-                              }}
-                            />
-
-                          </div>
-
+                          <p className="text-xs text-white/30">
+                            confidence
+                          </p>
                         </div>
-
                       </div>
-                    )
-                  )}
 
+                      <div className="mt-4">
+                        <div className="mb-1 flex justify-between text-xs">
+                          <span className="text-white/30">
+                            Detection confidence
+                          </span>
+
+                          <span className="text-white/50">
+                            {(crop.confidence * 100).toFixed(0)}%
+                          </span>
+                        </div>
+
+                        <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-full rounded-full bg-emerald-400"
+                            style={{
+                              width: `${Math.min(
+                                crop.confidence * 100,
+                                100
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-
             </div>
 
             {/* Backend note */}
-
             {result.note && (
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-
                 <div className="flex items-start gap-3">
-
                   <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-white/40" />
 
                   <div>
-
                     <p className="text-sm font-medium text-white/60">
                       Census information
                     </p>
@@ -413,26 +363,18 @@ export default function CensusPage() {
                     <p className="mt-1 text-sm leading-6 text-white/40">
                       {result.note}
                     </p>
-
                   </div>
-
                 </div>
-
               </div>
             )}
-
           </>
         )}
 
         {/* Empty state */}
-
         {!result && !loading && !error && (
           <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
-
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.04]">
-
               <Sprout className="h-6 w-6 text-white/20" />
-
             </div>
 
             <h2 className="mt-4 text-base font-medium">
@@ -443,10 +385,8 @@ export default function CensusPage() {
               Upload a field image above to let the AI
               detect and count the crops.
             </p>
-
           </div>
         )}
-
       </div>
     </DashboardShell>
   );
