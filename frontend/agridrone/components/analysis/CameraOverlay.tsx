@@ -17,19 +17,14 @@ export default function CameraOverlay({
 
   return (
     <>
-      {/* CROP BOUNDING BOXES */}
+      {/* Crop bounding boxes */}
       {result.crops.map((crop) => {
         const [x1, y1, x2, y2] = crop.box;
 
-        const left =
-          (x1 / result.image_width) * 100;
-
-        const top =
-          (y1 / result.image_height) * 100;
-
+        const left = (x1 / result.image_width) * 100;
+        const top = (y1 / result.image_height) * 100;
         const width =
           ((x2 - x1) / result.image_width) * 100;
-
         const height =
           ((y2 - y1) / result.image_height) * 100;
 
@@ -71,20 +66,14 @@ export default function CameraOverlay({
         );
       })}
 
-      {/* DISEASE BOUNDING BOXES */}
+      {/* Disease bounding boxes */}
       {allDiseases.map((disease, index) => {
-        const [x1, y1, x2, y2] =
-          disease.box;
+        const [x1, y1, x2, y2] = disease.box;
 
-        const left =
-          (x1 / result.image_width) * 100;
-
-        const top =
-          (y1 / result.image_height) * 100;
-
+        const left = (x1 / result.image_width) * 100;
+        const top = (y1 / result.image_height) * 100;
         const width =
           ((x2 - x1) / result.image_width) * 100;
-
         const height =
           ((y2 - y1) / result.image_height) * 100;
 
