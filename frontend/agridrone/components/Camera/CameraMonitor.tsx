@@ -66,9 +66,6 @@ export default function CameraMonitor() {
   const browserStreamRef =
     useRef<MediaStream | null>(null);
 
-  /*
-   * Find the currently selected camera.
-   */
   const activeCamera = useMemo(() => {
     return cameras.find(
       (camera) =>
@@ -77,11 +74,7 @@ export default function CameraMonitor() {
   }, [cameras, activeCameraId]);
 
   /*
-   * Detect browser cameras.
-   *
-   * We request temporary permission first.
-   * This allows the browser to expose camera
-   * labels such as "Integrated Camera".
+   * Detect cameras available to the browser.
    */
   async function detectBrowserCameras(): Promise<
     CameraDevice[]
@@ -97,11 +90,14 @@ export default function CameraMonitor() {
       | MediaStream
       | null = null;
 
+    /*
+     * Request permission first.
+     *
+     * This allows the browser to expose
+     * camera names when enumerateDevices()
+     * is called.
+     */
     try {
-      /*
-       * Request permission so camera labels
-       * become available.
-       */
       temporaryStream =
         await navigator.mediaDevices.getUserMedia(
           {
@@ -138,10 +134,7 @@ export default function CameraMonitor() {
       );
     } finally {
       /*
-       * The temporary stream was only used
-       * to request permission.
-       *
-       * Do not leave it running.
+       * Stop the temporary permission stream.
        */
       temporaryStream
         ?.getTracks()
@@ -152,8 +145,7 @@ export default function CameraMonitor() {
   }
 
   /*
-   * Load saved IP cameras and detect
-   * browser cameras.
+   * Load browser cameras and saved IP cameras.
    */
   async function loadCameras() {
     setDetecting(true);
@@ -169,9 +161,7 @@ export default function CameraMonitor() {
 
       if (saved) {
         try {
-          const parsed = JSON.parse(
-            saved
-          );
+          const parsed = JSON.parse(saved);
 
           if (Array.isArray(parsed)) {
             savedCameras = parsed.filter(
@@ -190,9 +180,6 @@ export default function CameraMonitor() {
       const browserCameras =
         await detectBrowserCameras();
 
-      /*
-       * Browser cameras + saved IP cameras.
-       */
       const allCameras = [
         ...browserCameras,
         ...savedCameras,
@@ -201,7 +188,7 @@ export default function CameraMonitor() {
       setCameras(allCameras);
 
       /*
-       * Restore previously selected camera.
+       * Restore the previously selected camera.
        */
       const savedActiveCamera =
         localStorage.getItem(
@@ -209,7 +196,7 @@ export default function CameraMonitor() {
         );
 
       const savedCameraStillExists =
-        savedActiveCamera &&
+        !!savedActiveCamera &&
         allCameras.some(
           (camera) =>
             camera.id === savedActiveCamera
@@ -217,7 +204,7 @@ export default function CameraMonitor() {
 
       if (savedCameraStillExists) {
         setActiveCameraId(
-          savedActiveCamera
+          savedActiveCamera!
         );
 
         const selected =
@@ -234,8 +221,8 @@ export default function CameraMonitor() {
         );
       } else if (allCameras.length > 0) {
         /*
-         * If there is no previous selection,
-         * automatically select the first camera.
+         * Automatically select the first
+         * available camera.
          */
         const firstCamera =
           allCameras[0];
@@ -260,7 +247,10 @@ export default function CameraMonitor() {
         );
       }
     } catch (error) {
-      console.error(error);
+      console.error(
+        "Camera detection failed:",
+        error
+      );
 
       setMessage(
         "Could not detect available cameras."
@@ -271,7 +261,7 @@ export default function CameraMonitor() {
   }
 
   /*
-   * Load cameras when the page opens.
+   * Detect cameras when the page opens.
    */
   useEffect(() => {
     loadCameras();
@@ -281,17 +271,19 @@ export default function CameraMonitor() {
    * Stop browser camera.
    */
   function stopBrowserCamera() {
-    browserStreamRef.current
-      ?.getTracks()
-      .forEach((track) => {
-        track.stop();
-      });
+    if (browserStreamRef.current) {
+      browserStreamRef.current
+        .getTracks()
+        .forEach((track) => {
+          track.stop();
+        });
+    }
 
     browserStreamRef.current = null;
 
     if (browserVideoRef.current) {
-      browserVideoRef.current.srcObject =
-        null;
+      browserVideoRef.current.pause();
+      browserVideoRef.current.srcObject = null;
     }
   }
 
@@ -306,7 +298,7 @@ export default function CameraMonitor() {
   }
 
   /*
-   * Start selected browser camera.
+   * Start the selected browser camera.
    */
   async function startBrowserCamera() {
     if (!activeCamera?.deviceId) {
@@ -321,6 +313,9 @@ export default function CameraMonitor() {
         "Starting browser camera..."
       );
 
+      /*
+       * Stop any previous camera.
+       */
       stopBrowserCamera();
 
       const stream =
@@ -344,12 +339,40 @@ export default function CameraMonitor() {
 
       browserStreamRef.current = stream;
 
-      if (browserVideoRef.current) {
-        browserVideoRef.current.srcObject =
-          stream;
+      /*
+       * Attach stream to video.
+       */
+      const video =
+        browserVideoRef.current;
 
-        await browserVideoRef.current.play();
+      if (!video) {
+        throw new Error(
+          "Camera video element is not ready."
+        );
       }
+
+      video.srcObject = stream;
+      video.muted = true;
+      video.playsInline = true;
+
+      /*
+       * Wait for the browser to receive
+       * the video metadata before playing.
+       */
+      await new Promise<void>(
+        (resolve) => {
+          if (video.readyState >= 1) {
+            resolve();
+            return;
+          }
+
+          video.onloadedmetadata = () => {
+            resolve();
+          };
+        }
+      );
+
+      await video.play();
 
       setConnected(true);
       setMonitoring(true);
@@ -358,7 +381,12 @@ export default function CameraMonitor() {
         `${activeCamera.name} is live.`
       );
     } catch (error) {
-      console.error(error);
+      console.error(
+        "Could not start camera:",
+        error
+      );
+
+      stopBrowserCamera();
 
       setConnected(false);
       setMonitoring(false);
@@ -439,7 +467,7 @@ export default function CameraMonitor() {
   }
 
   /*
-   * Select a camera.
+   * Select camera.
    */
   function selectCamera(
     camera: CameraDevice
@@ -466,7 +494,6 @@ export default function CameraMonitor() {
       setMessage(
         "Select a camera first."
       );
-
       return;
     }
 
@@ -487,7 +514,6 @@ export default function CameraMonitor() {
       activeCamera.type === "browser"
     ) {
       await startBrowserCamera();
-
       return;
     }
 
@@ -522,7 +548,7 @@ export default function CameraMonitor() {
   }
 
   /*
-   * Stop camera when leaving the page.
+   * Clean up when leaving the page.
    */
   useEffect(() => {
     return () => {
@@ -738,18 +764,20 @@ export default function CameraMonitor() {
 
         <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-black">
           {/* Browser camera */}
-          {monitoring &&
-            activeCamera?.type ===
-              "browser" && (
-              <video
-                ref={browserVideoRef}
-                muted
-                playsInline
-                className="h-full w-full object-contain"
-              />
-            )}
+
+          {activeCamera?.type ===
+            "browser" && (
+            <video
+              ref={browserVideoRef}
+              autoPlay
+              muted
+              playsInline
+              className="h-full w-full object-contain"
+            />
+          )}
 
           {/* IP camera */}
+
           {monitoring &&
             activeCamera?.type === "ip" &&
             activeCamera.streamUrl && (
@@ -762,27 +790,49 @@ export default function CameraMonitor() {
               />
             )}
 
-          {/* No active feed */}
-          {!monitoring && (
+          {/* No camera selected */}
+
+          {!activeCamera && (
             <div className="text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03]">
                 <Camera className="h-6 w-6 text-white/20" />
               </div>
 
               <p className="mt-4 text-sm text-white/50">
-                Camera feed is not active.
+                No camera selected.
               </p>
 
               <p className="mt-1 text-xs text-white/30">
-                Select an input and start
-                monitoring.
+                Select a camera input to begin.
               </p>
             </div>
           )}
+
+          {/* Camera selected but not running */}
+
+          {activeCamera &&
+            !monitoring && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                <div className="text-center">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03]">
+                    <Camera className="h-6 w-6 text-white/20" />
+                  </div>
+
+                  <p className="mt-4 text-sm text-white/50">
+                    Camera feed is not active.
+                  </p>
+
+                  <p className="mt-1 text-xs text-white/30">
+                    Click Start Monitoring.
+                  </p>
+                </div>
+              </div>
+            )}
         </div>
       </section>
 
       {/* Camera information */}
+
       <section className="grid gap-4 md:grid-cols-3">
         <InfoCard
           label="Active Input"
