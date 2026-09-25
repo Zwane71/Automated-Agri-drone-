@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   Camera,
   CircleAlert,
   Play,
+  RefreshCw,
   Square,
 } from "lucide-react";
 
@@ -24,14 +30,34 @@ interface CameraDevice {
   streamUrl?: string;
 }
 
+const CAMERAS_STORAGE_KEY =
+  "agri-drone-cameras";
+
+const ACTIVE_CAMERA_STORAGE_KEY =
+  "agri-drone-active-camera";
+
 export default function CameraMonitor() {
-  const [cameras, setCameras] = useState<CameraDevice[]>([]);
-  const [activeCameraId, setActiveCameraId] = useState("");
-  const [testing, setTesting] = useState(false);
-  const [connected, setConnected] = useState(false);
-  const [monitoring, setMonitoring] = useState(false);
+  const [cameras, setCameras] = useState<
+    CameraDevice[]
+  >([]);
+
+  const [activeCameraId, setActiveCameraId] =
+    useState("");
+
+  const [testing, setTesting] =
+    useState(false);
+
+  const [detecting, setDetecting] =
+    useState(false);
+
+  const [connected, setConnected] =
+    useState(false);
+
+  const [monitoring, setMonitoring] =
+    useState(false);
+
   const [message, setMessage] = useState(
-    "Select an input to begin."
+    "Detecting available cameras..."
   );
 
   const browserVideoRef =
@@ -40,54 +66,219 @@ export default function CameraMonitor() {
   const browserStreamRef =
     useRef<MediaStream | null>(null);
 
-  useEffect(() => {
-    loadSavedCameras();
-  }, []);
-
+  /*
+   * Find the currently selected camera.
+   */
   const activeCamera = useMemo(() => {
     return cameras.find(
-      (camera) => camera.id === activeCameraId
+      (camera) =>
+        camera.id === activeCameraId
     );
   }, [cameras, activeCameraId]);
 
   /*
-   * Load cameras saved from Settings.
+   * Detect browser cameras.
+   *
+   * We request temporary permission first.
+   * This allows the browser to expose camera
+   * labels such as "Integrated Camera".
    */
-  function loadSavedCameras() {
+  async function detectBrowserCameras(): Promise<
+    CameraDevice[]
+  > {
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices
+    ) {
+      return [];
+    }
+
+    let temporaryStream:
+      | MediaStream
+      | null = null;
+
     try {
-      const savedCameras =
-        localStorage.getItem(
-          "agri-drone-cameras"
+      /*
+       * Request permission so camera labels
+       * become available.
+       */
+      temporaryStream =
+        await navigator.mediaDevices.getUserMedia(
+          {
+            video: true,
+            audio: false,
+          }
+        );
+    } catch (error) {
+      console.warn(
+        "Camera permission was not granted:",
+        error
+      );
+    }
+
+    try {
+      const devices =
+        await navigator.mediaDevices.enumerateDevices();
+
+      const videoDevices =
+        devices.filter(
+          (device) =>
+            device.kind === "videoinput"
         );
 
-      const savedActiveCamera =
+      return videoDevices.map(
+        (device, index) => ({
+          id: `browser-${device.deviceId}`,
+          name:
+            device.label ||
+            `Browser Camera ${index + 1}`,
+          type: "browser" as const,
+          deviceId: device.deviceId,
+        })
+      );
+    } finally {
+      /*
+       * The temporary stream was only used
+       * to request permission.
+       *
+       * Do not leave it running.
+       */
+      temporaryStream
+        ?.getTracks()
+        .forEach((track) => {
+          track.stop();
+        });
+    }
+  }
+
+  /*
+   * Load saved IP cameras and detect
+   * browser cameras.
+   */
+  async function loadCameras() {
+    setDetecting(true);
+
+    try {
+      let savedCameras: CameraDevice[] =
+        [];
+
+      const saved =
         localStorage.getItem(
-          "agri-drone-active-camera"
+          CAMERAS_STORAGE_KEY
         );
 
-      if (savedCameras) {
-        const parsed: CameraDevice[] =
-          JSON.parse(savedCameras);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(
+            saved
+          );
 
-        setCameras(parsed);
+          if (Array.isArray(parsed)) {
+            savedCameras = parsed.filter(
+              (camera: CameraDevice) =>
+                camera.type === "ip"
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Could not read saved cameras:",
+            error
+          );
+        }
       }
 
-      if (savedActiveCamera) {
+      const browserCameras =
+        await detectBrowserCameras();
+
+      /*
+       * Browser cameras + saved IP cameras.
+       */
+      const allCameras = [
+        ...browserCameras,
+        ...savedCameras,
+      ];
+
+      setCameras(allCameras);
+
+      /*
+       * Restore previously selected camera.
+       */
+      const savedActiveCamera =
+        localStorage.getItem(
+          ACTIVE_CAMERA_STORAGE_KEY
+        );
+
+      const savedCameraStillExists =
+        savedActiveCamera &&
+        allCameras.some(
+          (camera) =>
+            camera.id === savedActiveCamera
+        );
+
+      if (savedCameraStillExists) {
         setActiveCameraId(
           savedActiveCamera
+        );
+
+        const selected =
+          allCameras.find(
+            (camera) =>
+              camera.id ===
+              savedActiveCamera
+          );
+
+        setMessage(
+          selected
+            ? `${selected.name} selected.`
+            : "Select a camera to begin."
+        );
+      } else if (allCameras.length > 0) {
+        /*
+         * If there is no previous selection,
+         * automatically select the first camera.
+         */
+        const firstCamera =
+          allCameras[0];
+
+        setActiveCameraId(
+          firstCamera.id
+        );
+
+        localStorage.setItem(
+          ACTIVE_CAMERA_STORAGE_KEY,
+          firstCamera.id
+        );
+
+        setMessage(
+          `${firstCamera.name} selected.`
+        );
+      } else {
+        setActiveCameraId("");
+
+        setMessage(
+          "No cameras were detected."
         );
       }
     } catch (error) {
       console.error(error);
 
       setMessage(
-        "Could not load saved camera settings."
+        "Could not detect available cameras."
       );
+    } finally {
+      setDetecting(false);
     }
   }
 
   /*
-   * Stop browser camera if one is running.
+   * Load cameras when the page opens.
+   */
+  useEffect(() => {
+    loadCameras();
+  }, []);
+
+  /*
+   * Stop browser camera.
    */
   function stopBrowserCamera() {
     browserStreamRef.current
@@ -105,7 +296,7 @@ export default function CameraMonitor() {
   }
 
   /*
-   * Stop the currently active input.
+   * Stop monitoring.
    */
   function stopMonitoring() {
     stopBrowserCamera();
@@ -115,7 +306,7 @@ export default function CameraMonitor() {
   }
 
   /*
-   * Start a browser camera.
+   * Start selected browser camera.
    */
   async function startBrowserCamera() {
     if (!activeCamera?.deviceId) {
@@ -181,7 +372,7 @@ export default function CameraMonitor() {
   }
 
   /*
-   * Test an IP camera.
+   * Test selected IP camera.
    */
   async function handleTestCamera() {
     if (
@@ -248,7 +439,7 @@ export default function CameraMonitor() {
   }
 
   /*
-   * Select an input.
+   * Select a camera.
    */
   function selectCamera(
     camera: CameraDevice
@@ -258,7 +449,7 @@ export default function CameraMonitor() {
     setActiveCameraId(camera.id);
 
     localStorage.setItem(
-      "agri-drone-active-camera",
+      ACTIVE_CAMERA_STORAGE_KEY,
       camera.id
     );
 
@@ -268,7 +459,7 @@ export default function CameraMonitor() {
   }
 
   /*
-   * Start/stop the selected input.
+   * Start or stop monitoring.
    */
   async function toggleMonitoring() {
     if (!activeCamera) {
@@ -279,9 +470,6 @@ export default function CameraMonitor() {
       return;
     }
 
-    /*
-     * Stop current input.
-     */
     if (monitoring) {
       stopMonitoring();
 
@@ -299,6 +487,7 @@ export default function CameraMonitor() {
       activeCamera.type === "browser"
     ) {
       await startBrowserCamera();
+
       return;
     }
 
@@ -333,7 +522,7 @@ export default function CameraMonitor() {
   }
 
   /*
-   * Clean up browser camera when leaving page.
+   * Stop camera when leaving the page.
    */
   useEffect(() => {
     return () => {
@@ -343,20 +532,17 @@ export default function CameraMonitor() {
 
   return (
     <div className="space-y-6">
-
       {/* Camera selector */}
-
       <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-
           <div>
             <h2 className="text-lg font-medium">
               Camera Input
             </h2>
 
             <p className="mt-1 text-sm text-white/40">
-              Select and manage the camera input used by the system.
+              Select and manage the camera input
+              used by the system.
             </p>
           </div>
 
@@ -366,28 +552,47 @@ export default function CameraMonitor() {
             }
             message={message}
           />
+        </div>
 
+        {/* Refresh cameras */}
+        <div className="mt-6 flex justify-end">
+          <button
+            type="button"
+            onClick={loadCameras}
+            disabled={detecting}
+            className="flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm transition hover:bg-white/10 disabled:opacity-50"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${
+                detecting
+                  ? "animate-spin"
+                  : ""
+              }`}
+            />
+
+            {detecting
+              ? "Detecting..."
+              : "Refresh Cameras"}
+          </button>
         </div>
 
         {/* Camera list */}
-
         {cameras.length === 0 ? (
-          <div className="mt-6 rounded-xl border border-dashed border-white/10 p-8 text-center">
-
+          <div className="mt-4 rounded-xl border border-dashed border-white/10 p-8 text-center">
             <Camera className="mx-auto mb-3 h-8 w-8 text-white/20" />
 
             <p className="text-sm text-white/50">
-              No camera inputs are configured.
+              No camera inputs detected.
             </p>
 
             <p className="mt-2 text-xs text-white/30">
-              Add an IP camera or configure a browser camera from Settings.
+              Make sure your camera is connected
+              and allow camera access when your
+              browser asks for permission.
             </p>
-
           </div>
         ) : (
-          <div className="mt-6 space-y-3">
-
+          <div className="mt-4 space-y-3">
             <label className="text-xs text-white/40">
               Active Input
             </label>
@@ -431,48 +636,47 @@ export default function CameraMonitor() {
 
             {activeCamera && (
               <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-
                 <div className="flex items-center justify-between">
-
                   <div>
                     <p className="text-sm font-medium">
                       {activeCamera.name}
                     </p>
 
                     <p className="mt-1 text-xs text-white/40">
-                      {activeCamera.type === "ip"
+                      {activeCamera.type ===
+                      "ip"
                         ? "IP / Wireless Camera"
                         : "Browser Camera"}
                     </p>
                   </div>
 
                   <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-white/50">
-                    {activeCamera.type === "ip"
+                    {activeCamera.type ===
+                    "ip"
                       ? "IP"
                       : "Browser"}
                   </span>
-
                 </div>
 
-                {activeCamera.type === "ip" &&
+                {activeCamera.type ===
+                  "ip" &&
                   activeCamera.streamUrl && (
                     <p className="mt-3 truncate text-xs text-white/30">
-                      {activeCamera.streamUrl}
+                      {
+                        activeCamera.streamUrl
+                      }
                     </p>
                   )}
-
               </div>
             )}
-
           </div>
         )}
 
         {/* Controls */}
-
         {activeCamera && (
           <div className="mt-5 flex flex-wrap gap-3">
-
-            {activeCamera.type === "ip" && (
+            {activeCamera.type ===
+              "ip" && (
               <button
                 type="button"
                 onClick={
@@ -506,18 +710,13 @@ export default function CameraMonitor() {
                 </>
               )}
             </button>
-
           </div>
         )}
-
       </section>
 
       {/* Live feed */}
-
       <section className="overflow-hidden rounded-2xl border border-white/10 bg-black">
-
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-
           <div>
             <h2 className="text-sm font-medium">
               Live Input
@@ -531,20 +730,14 @@ export default function CameraMonitor() {
 
           {monitoring && (
             <div className="flex items-center gap-2 text-xs text-red-300">
-
               <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
-
               LIVE
-
             </div>
           )}
-
         </div>
 
         <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-black">
-
           {/* Browser camera */}
-
           {monitoring &&
             activeCamera?.type ===
               "browser" && (
@@ -557,7 +750,6 @@ export default function CameraMonitor() {
             )}
 
           {/* IP camera */}
-
           {monitoring &&
             activeCamera?.type === "ip" &&
             activeCamera.streamUrl && (
@@ -571,14 +763,10 @@ export default function CameraMonitor() {
             )}
 
           {/* No active feed */}
-
           {!monitoring && (
             <div className="text-center">
-
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03]">
-
                 <Camera className="h-6 w-6 text-white/20" />
-
               </div>
 
               <p className="mt-4 text-sm text-white/50">
@@ -586,20 +774,16 @@ export default function CameraMonitor() {
               </p>
 
               <p className="mt-1 text-xs text-white/30">
-                Select an input and start monitoring.
+                Select an input and start
+                monitoring.
               </p>
-
             </div>
           )}
-
         </div>
-
       </section>
 
-      {/* Input information */}
-
+      {/* Camera information */}
       <section className="grid gap-4 md:grid-cols-3">
-
         <InfoCard
           label="Active Input"
           value={
@@ -612,7 +796,8 @@ export default function CameraMonitor() {
           label="Type"
           value={
             activeCamera
-              ? activeCamera.type === "ip"
+              ? activeCamera.type ===
+                "ip"
                 ? "IP / Wireless"
                 : "Browser Camera"
               : "—"
@@ -629,23 +814,17 @@ export default function CameraMonitor() {
               : "Offline"
           }
         />
-
       </section>
-
-      {/* Information */}
 
       {!activeCamera && (
         <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
-
           <CircleAlert className="h-4 w-4 text-white/30" />
 
           <p className="text-sm text-white/40">
             Select a camera input to begin.
           </p>
-
         </div>
       )}
-
     </div>
   );
 }
@@ -661,7 +840,6 @@ function InfoCard({
 }: InfoCardProps) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-
       <p className="text-xs text-white/40">
         {label}
       </p>
@@ -669,7 +847,6 @@ function InfoCard({
       <p className="mt-2 text-sm font-medium">
         {value}
       </p>
-
     </div>
   );
 }

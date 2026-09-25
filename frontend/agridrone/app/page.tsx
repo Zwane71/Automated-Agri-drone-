@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Camera from "../components/Camera/Webcam";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -8,7 +8,10 @@ export default function Home() {
        <div>
         <h1>
           WELCOME TO ADRIDRONE
-          < Camera />
+          <Link href="/(dashboard)/home" className="text-blue-500">
+            {" "}
+            welcome
+          </Link>
         </h1>
        </div>
       </main>
