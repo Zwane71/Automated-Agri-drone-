@@ -60,6 +60,15 @@ export default function CameraMonitor() {
     "Detecting available cameras..."
   );
 
+  const [showIpForm, setShowIpForm] =
+    useState(false);
+
+  const [ipCameraName, setIpCameraName] =
+    useState("");
+
+  const [ipCameraUrl, setIpCameraUrl] =
+    useState("");
+
   const browserVideoRef =
     useRef<HTMLVideoElement | null>(null);
 
@@ -72,15 +81,6 @@ export default function CameraMonitor() {
         camera.id === activeCameraId
     );
   }, [cameras, activeCameraId]);
-
-  const [showIpForm, setShowIpForm] =
-  useState(false);
-
-const [ipCameraName, setIpCameraName] =
-  useState("");
-
-const [ipCameraUrl, setIpCameraUrl] =
-  useState("");
 
   /*
    * Detect cameras available to the browser.
@@ -95,9 +95,8 @@ const [ipCameraUrl, setIpCameraUrl] =
       return [];
     }
 
-    let temporaryStream:
-      | MediaStream
-      | null = null;
+    let temporaryStream: MediaStream | null =
+      null;
 
     /*
      * Request permission first.
@@ -108,12 +107,10 @@ const [ipCameraUrl, setIpCameraUrl] =
      */
     try {
       temporaryStream =
-        await navigator.mediaDevices.getUserMedia(
-          {
-            video: true,
-            audio: false,
-          }
-        );
+        await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
     } catch (error) {
       console.warn(
         "Camera permission was not granted:",
@@ -125,11 +122,10 @@ const [ipCameraUrl, setIpCameraUrl] =
       const devices =
         await navigator.mediaDevices.enumerateDevices();
 
-      const videoDevices =
-        devices.filter(
-          (device) =>
-            device.kind === "videoinput"
-        );
+      const videoDevices = devices.filter(
+        (device) =>
+          device.kind === "videoinput"
+      );
 
       return videoDevices.map(
         (device, index) => ({
@@ -142,9 +138,6 @@ const [ipCameraUrl, setIpCameraUrl] =
         })
       );
     } finally {
-      /*
-       * Stop the temporary permission stream.
-       */
       temporaryStream
         ?.getTracks()
         .forEach((track) => {
@@ -160,8 +153,7 @@ const [ipCameraUrl, setIpCameraUrl] =
     setDetecting(true);
 
     try {
-      let savedCameras: CameraDevice[] =
-        [];
+      let savedCameras: CameraDevice[] = [];
 
       const saved =
         localStorage.getItem(
@@ -173,10 +165,7 @@ const [ipCameraUrl, setIpCameraUrl] =
           const parsed = JSON.parse(saved);
 
           if (Array.isArray(parsed)) {
-            savedCameras = parsed.filter(
-              (camera: CameraDevice) =>
-                camera.type === "ip"
-            );
+            savedCameras = parsed;
           }
         } catch (error) {
           console.error(
@@ -189,15 +178,64 @@ const [ipCameraUrl, setIpCameraUrl] =
       const browserCameras =
         await detectBrowserCameras();
 
+      /*
+       * Separate saved cameras.
+       */
+      const savedBrowserCameras =
+        savedCameras.filter(
+          (camera) =>
+            camera.type === "browser"
+        );
+
+      const savedIpCameras =
+        savedCameras.filter(
+          (camera) =>
+            camera.type === "ip"
+        );
+
+      /*
+       * Merge detected browser cameras with
+       * previously saved browser camera names.
+       */
+      const mergedBrowserCameras =
+        browserCameras.map(
+          (browserCamera) => {
+            const savedBrowser =
+              savedBrowserCameras.find(
+                (camera) =>
+                  camera.deviceId ===
+                  browserCamera.deviceId
+              );
+
+            return {
+              ...browserCamera,
+              name:
+                savedBrowser?.name ||
+                browserCamera.name,
+            };
+          }
+        );
+
+      /*
+       * Final camera list.
+       */
       const allCameras = [
-        ...browserCameras,
-        ...savedCameras,
+        ...mergedBrowserCameras,
+        ...savedIpCameras,
       ];
 
       setCameras(allCameras);
 
       /*
-       * Restore the previously selected camera.
+       * Save both browser and IP cameras.
+       */
+      localStorage.setItem(
+        CAMERAS_STORAGE_KEY,
+        JSON.stringify(allCameras)
+      );
+
+      /*
+       * Restore previously selected camera.
        */
       const savedActiveCamera =
         localStorage.getItem(
@@ -208,7 +246,8 @@ const [ipCameraUrl, setIpCameraUrl] =
         !!savedActiveCamera &&
         allCameras.some(
           (camera) =>
-            camera.id === savedActiveCamera
+            camera.id ===
+            savedActiveCamera
         );
 
       if (savedCameraStillExists) {
@@ -229,10 +268,6 @@ const [ipCameraUrl, setIpCameraUrl] =
             : "Select a camera to begin."
         );
       } else if (allCameras.length > 0) {
-        /*
-         * Automatically select the first
-         * available camera.
-         */
         const firstCamera =
           allCameras[0];
 
@@ -307,13 +342,14 @@ const [ipCameraUrl, setIpCameraUrl] =
   }
 
   /*
-   * Start the selected browser camera.
+   * Start selected browser camera.
    */
   async function startBrowserCamera() {
     if (!activeCamera?.deviceId) {
       setMessage(
         "Browser camera device is not available."
       );
+
       return;
     }
 
@@ -322,35 +358,28 @@ const [ipCameraUrl, setIpCameraUrl] =
         "Starting browser camera..."
       );
 
-      /*
-       * Stop any previous camera.
-       */
       stopBrowserCamera();
 
       const stream =
-        await navigator.mediaDevices.getUserMedia(
-          {
-            video: {
-              deviceId: {
-                exact:
-                  activeCamera.deviceId,
-              },
-              width: {
-                ideal: 640,
-              },
-              height: {
-                ideal: 480,
-              },
+        await navigator.mediaDevices.getUserMedia({
+          video: {
+            deviceId: {
+              exact:
+                activeCamera.deviceId,
             },
-            audio: false,
-          }
-        );
+            width: {
+              ideal: 640,
+            },
+            height: {
+              ideal: 480,
+            },
+          },
+          audio: false,
+        });
 
-      browserStreamRef.current = stream;
+      browserStreamRef.current =
+        stream;
 
-      /*
-       * Attach stream to video.
-       */
       const video =
         browserVideoRef.current;
 
@@ -365,8 +394,7 @@ const [ipCameraUrl, setIpCameraUrl] =
       video.playsInline = true;
 
       /*
-       * Wait for the browser to receive
-       * the video metadata before playing.
+       * Wait for video metadata.
        */
       await new Promise<void>(
         (resolve) => {
@@ -490,8 +518,87 @@ const [ipCameraUrl, setIpCameraUrl] =
       camera.id
     );
 
+    /*
+     * Save the complete camera list.
+     */
+    localStorage.setItem(
+      CAMERAS_STORAGE_KEY,
+      JSON.stringify(cameras)
+    );
+
     setMessage(
       `${camera.name} selected.`
+    );
+  }
+
+  /*
+   * Add IP / Wireless camera.
+   */
+  function addIpCamera() {
+    const name =
+      ipCameraName.trim() ||
+      "IP Camera";
+
+    const url =
+      ipCameraUrl.trim();
+
+    if (!url) {
+      setMessage(
+        "Enter the camera stream URL."
+      );
+
+      return;
+    }
+
+    const newCamera: CameraDevice = {
+      id: `ip-${Date.now()}`,
+      name,
+      type: "ip",
+      streamUrl: url,
+    };
+
+    const updatedCameras = [
+      ...cameras,
+      newCamera,
+    ];
+
+    /*
+     * Save camera list.
+     */
+    localStorage.setItem(
+      CAMERAS_STORAGE_KEY,
+      JSON.stringify(updatedCameras)
+    );
+
+    /*
+     * Update React state.
+     */
+    setCameras(updatedCameras);
+
+    /*
+     * Automatically select the new camera.
+     */
+    setActiveCameraId(
+      newCamera.id
+    );
+
+    localStorage.setItem(
+      ACTIVE_CAMERA_STORAGE_KEY,
+      newCamera.id
+    );
+
+    /*
+     * Reset form.
+     */
+    setIpCameraName("");
+    setIpCameraUrl("");
+    setShowIpForm(false);
+
+    setConnected(false);
+    setMonitoring(false);
+
+    setMessage(
+      `${name} added and selected.`
     );
   }
 
@@ -503,6 +610,7 @@ const [ipCameraUrl, setIpCameraUrl] =
       setMessage(
         "Select a camera first."
       );
+
       return;
     }
 
@@ -568,6 +676,7 @@ const [ipCameraUrl, setIpCameraUrl] =
   return (
     <div className="space-y-6">
       {/* Camera selector */}
+
       <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -576,8 +685,8 @@ const [ipCameraUrl, setIpCameraUrl] =
             </h2>
 
             <p className="mt-1 text-sm text-white/40">
-              Select and manage the camera input
-              used by the system.
+              Select and manage the camera
+              input used by the system.
             </p>
           </div>
 
@@ -590,6 +699,7 @@ const [ipCameraUrl, setIpCameraUrl] =
         </div>
 
         {/* Refresh cameras */}
+
         <div className="mt-6 flex justify-end">
           <button
             type="button"
@@ -612,6 +722,7 @@ const [ipCameraUrl, setIpCameraUrl] =
         </div>
 
         {/* Camera list */}
+
         {cameras.length === 0 ? (
           <div className="mt-4 rounded-xl border border-dashed border-white/10 p-8 text-center">
             <Camera className="mx-auto mb-3 h-8 w-8 text-white/20" />
@@ -621,9 +732,10 @@ const [ipCameraUrl, setIpCameraUrl] =
             </p>
 
             <p className="mt-2 text-xs text-white/30">
-              Make sure your camera is connected
-              and allow camera access when your
-              browser asks for permission.
+              Make sure your camera is
+              connected and allow camera
+              access when your browser asks
+              for permission.
             </p>
           </div>
         ) : (
@@ -708,164 +820,86 @@ const [ipCameraUrl, setIpCameraUrl] =
         )}
 
         {/* Add IP / Wireless Camera */}
-          <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-medium">
-                  IP / Wireless Camera
-                </p>
 
-                <p className="mt-1 text-xs text-white/40">
-                  Add a network camera using its stream URL.
-                </p>
+        <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-medium">
+                IP / Wireless Camera
+              </p>
+
+              <p className="mt-1 text-xs text-white/40">
+                Add a network camera using its
+                stream URL.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowIpForm(
+                  (value) => !value
+                )
+              }
+              className="rounded-xl border border-white/10 px-4 py-2.5 text-sm transition hover:bg-white/10"
+            >
+              {showIpForm
+                ? "Cancel"
+                : "Add IP Camera"}
+            </button>
+          </div>
+
+          {showIpForm && (
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs text-white/40">
+                  Camera Name
+                </label>
+
+                <input
+                  type="text"
+                  value={ipCameraName}
+                  onChange={(event) =>
+                    setIpCameraName(
+                      event.target.value
+                    )
+                  }
+                  placeholder="e.g. Field Camera"
+                  className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-white/30"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-white/40">
+                  Stream URL
+                </label>
+
+                <input
+                  type="text"
+                  value={ipCameraUrl}
+                  onChange={(event) =>
+                    setIpCameraUrl(
+                      event.target.value
+                    )
+                  }
+                  placeholder="rtsp://192.168.1.100:554/..."
+                  className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-white/30"
+                />
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  setShowIpForm((value) => !value)
-                }
-                className="rounded-xl border border-white/10 px-4 py-2.5 text-sm transition hover:bg-white/10"
+                onClick={addIpCamera}
+                className="rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-black transition hover:bg-white/90"
               >
-                {showIpForm
-                  ? "Cancel"
-                  : "Add IP Camera"}
+                Add Camera
               </button>
             </div>
-
-            {showIpForm && (
-              <div className="mt-4 space-y-3">
-                <div>
-                  <label className="text-xs text-white/40">
-                    Camera Name
-                  </label>
-
-                  <input
-                    type="text"
-                    value={ipCameraName}
-                    onChange={(event) =>
-                      setIpCameraName(
-                        event.target.value
-                      )
-                    }
-                    placeholder="e.g. Field Camera"
-                    className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-white/30"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs text-white/40">
-                    Stream URL
-                  </label>
-
-                  <input
-                    type="text"
-                    value={ipCameraUrl}
-                    onChange={(event) =>
-                      setIpCameraUrl(
-                        event.target.value
-                      )
-                    }
-                    placeholder="rtsp://192.168.1.100:554/..."
-                    className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-white/30"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const name =
-                      ipCameraName.trim() ||
-                      "IP Camera";
-
-                    const url =
-                      ipCameraUrl.trim();
-
-                    if (!url) {
-                      setMessage(
-                        "Enter the camera stream URL."
-                      );
-                      return;
-                    }
-
-                    const newCamera: CameraDevice = {
-                      id: `ip-${Date.now()}`,
-                      name,
-                      type: "ip",
-                      streamUrl: url,
-                    };
-
-                    const existing =
-                      localStorage.getItem(
-                        CAMERAS_STORAGE_KEY
-                      );
-
-                    let savedCameras: CameraDevice[] =
-                      [];
-
-                    if (existing) {
-                      try {
-                        const parsed =
-                          JSON.parse(existing);
-
-                        if (Array.isArray(parsed)) {
-                          savedCameras =
-                            parsed.filter(
-                              (camera: CameraDevice) =>
-                                camera.type === "ip"
-                            );
-                        }
-                      } catch {
-                        savedCameras = [];
-                      }
-                    }
-
-                    const updatedCameras = [
-                      ...savedCameras,
-                      newCamera,
-                    ];
-
-                    localStorage.setItem(
-                      CAMERAS_STORAGE_KEY,
-                      JSON.stringify(
-                        updatedCameras
-                      )
-                    );
-
-                    setCameras((current) => [
-                      ...current,
-                      newCamera,
-                    ]);
-
-                    setActiveCameraId(
-                      newCamera.id
-                    );
-
-                    localStorage.setItem(
-                      ACTIVE_CAMERA_STORAGE_KEY,
-                      newCamera.id
-                    );
-
-                    setIpCameraName("");
-                    setIpCameraUrl("");
-                    setShowIpForm(false);
-
-                    setConnected(false);
-                    setMonitoring(false);
-
-                    setMessage(
-                      `${name} added and selected.`
-                    );
-                  }}
-                  className="rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-black transition hover:bg-white/90"
-                >
-                  Add Camera
-                </button>
-              </div>
-            )}
-          </div>
+          )}
+        </div>
 
         {/* Controls */}
+
         {activeCamera && (
           <div className="mt-5 flex flex-wrap gap-3">
             {activeCamera.type ===
@@ -908,6 +942,7 @@ const [ipCameraUrl, setIpCameraUrl] =
       </section>
 
       {/* Live feed */}
+
       <section className="overflow-hidden rounded-2xl border border-white/10 bg-black">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
@@ -970,7 +1005,8 @@ const [ipCameraUrl, setIpCameraUrl] =
               </p>
 
               <p className="mt-1 text-xs text-white/30">
-                Select a camera input to begin.
+                Select a camera input to
+                begin.
               </p>
             </div>
           )}
