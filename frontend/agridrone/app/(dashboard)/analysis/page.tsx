@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
   Activity,
@@ -30,6 +34,12 @@ interface CameraDevice {
   streamUrl?: string;
 }
 
+const CAMERAS_STORAGE_KEY =
+  "agri-drone-cameras";
+
+const ACTIVE_CAMERA_STORAGE_KEY =
+  "agri-drone-active-camera";
+
 export default function AnalysisPage() {
   const [analysis, setAnalysis] =
     useState<AnalysisResult | null>(null);
@@ -55,14 +65,19 @@ export default function AnalysisPage() {
   useEffect(() => {
     function loadSelectedCamera() {
       const savedCameras =
-        localStorage.getItem("agri-drone-cameras");
+        localStorage.getItem(
+          CAMERAS_STORAGE_KEY
+        );
 
       const savedActiveCamera =
         localStorage.getItem(
-          "agri-drone-active-camera"
+          ACTIVE_CAMERA_STORAGE_KEY
         );
 
-      if (!savedCameras || !savedActiveCamera) {
+      if (
+        !savedCameras ||
+        !savedActiveCamera
+      ) {
         setSelectedCamera(null);
         return;
       }
@@ -71,10 +86,12 @@ export default function AnalysisPage() {
         const cameras: CameraDevice[] =
           JSON.parse(savedCameras);
 
-        const activeCamera = cameras.find(
-          (camera) =>
-            camera.id === savedActiveCamera
-        );
+        const activeCamera =
+          cameras.find(
+            (camera) =>
+              camera.id ===
+              savedActiveCamera
+          );
 
         setSelectedCamera(
           activeCamera || null
@@ -93,14 +110,19 @@ export default function AnalysisPage() {
 
     /*
      * Check again when the page becomes visible.
-     * This helps when the user selects a different
-     * camera on the Camera page and returns here.
+     *
+     * This allows the Analysis page to detect
+     * a camera selected from the Camera page.
      */
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        loadSelectedCamera();
-      }
-    };
+    const handleVisibilityChange =
+      () => {
+        if (
+          document.visibilityState ===
+          "visible"
+        ) {
+          loadSelectedCamera();
+        }
+      };
 
     document.addEventListener(
       "visibilitychange",
@@ -126,8 +148,8 @@ export default function AnalysisPage() {
   }, []);
 
   /*
-   * Average confidence of the current live
-   * disease detections.
+   * Average confidence of the current
+   * live disease detections.
    */
   const averageLiveConfidence =
     liveDiseases.length > 0
@@ -146,11 +168,15 @@ export default function AnalysisPage() {
    * Group live diseases by disease name.
    */
   const liveDiseaseSummary = useMemo(() => {
-    const summary: Record<string, number> = {};
+    const summary: Record<
+      string,
+      number
+    > = {};
 
     liveDiseases.forEach((disease) => {
       summary[disease.disease] =
-        (summary[disease.disease] || 0) + 1;
+        (summary[disease.disease] || 0) +
+        1;
     });
 
     return Object.entries(summary).sort(
@@ -165,7 +191,8 @@ export default function AnalysisPage() {
   const handleImageUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const file = event.target.files?.[0];
+    const file =
+      event.target.files?.[0];
 
     if (!file) {
       return;
@@ -175,7 +202,8 @@ export default function AnalysisPage() {
     setError(null);
 
     try {
-      const result = await analyzeFull(file);
+      const result =
+        await analyzeFull(file);
 
       setAnalysis(result);
     } catch (err) {
@@ -199,7 +227,6 @@ export default function AnalysisPage() {
   return (
     <DashboardShell>
       <div className="space-y-6 p-5 md:p-8">
-
         {/* Page header */}
 
         <PageHeader
@@ -224,7 +251,8 @@ export default function AnalysisPage() {
 
               <p className="mt-1 text-xs text-white/30">
                 {selectedCamera
-                  ? selectedCamera.type === "ip"
+                  ? selectedCamera.type ===
+                    "ip"
                     ? "Wireless / IP camera"
                     : "Browser camera"
                   : "Select a camera from the Camera page."}
@@ -258,14 +286,18 @@ export default function AnalysisPage() {
             </h2>
 
             <p className="mt-1 text-sm text-white/40">
-              Real-time crop and disease detection
-              from the selected camera input.
+              Real-time crop and disease
+              detection from the selected
+              camera input.
             </p>
           </div>
 
           <LiveCropCamera
             camera={selectedCamera}
-            onDetection={(crops, diseases) => {
+            onDetection={(
+              crops,
+              diseases
+            ) => {
               setLiveCrops(crops);
               setLiveDiseases(diseases);
             }}
@@ -347,8 +379,8 @@ export default function AnalysisPage() {
             </h2>
 
             <p className="mt-1 text-sm text-white/40">
-              Diseases currently detected by the
-              selected AI camera.
+              Diseases currently detected by
+              the selected AI camera.
             </p>
           </div>
 
@@ -361,8 +393,8 @@ export default function AnalysisPage() {
               </p>
 
               <p className="mt-1 text-xs text-white/30">
-                Start the selected camera and point
-                it at crops.
+                Start the selected camera and
+                point it at crops.
               </p>
             </div>
           ) : (
@@ -415,8 +447,9 @@ export default function AnalysisPage() {
               </h2>
 
               <p className="mt-1 text-sm text-white/40">
-                Upload a field image for detailed
-                crop and disease analysis.
+                Upload a field image for
+                detailed crop and disease
+                analysis.
               </p>
             </div>
 
@@ -438,7 +471,6 @@ export default function AnalysisPage() {
           {error && (
             <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-300">
               <CircleAlert className="h-4 w-4 shrink-0" />
-
               {error}
             </div>
           )}
@@ -454,8 +486,8 @@ export default function AnalysisPage() {
               </h2>
 
               <p className="mt-1 text-sm text-white/40">
-                Detailed results returned from the
-                AgriDrone AI backend.
+                Detailed results returned from
+                the AgriDrone AI backend.
               </p>
             </div>
 
@@ -478,7 +510,9 @@ export default function AnalysisPage() {
                 </p>
 
                 <p className="mt-2 text-2xl font-semibold">
-                  {analysis.diseased_crop_count}
+                  {
+                    analysis.diseased_crop_count
+                  }
                 </p>
               </div>
 
@@ -501,96 +535,113 @@ export default function AnalysisPage() {
               </h3>
 
               <div className="space-y-3">
-                {analysis.crops.map((crop) => (
-                  <div
-                    key={crop.crop_id}
-                    className="rounded-xl border border-white/10 bg-white/[0.02] p-4"
-                  >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="rounded-md bg-emerald-400/10 px-2 py-1 text-xs font-medium text-emerald-400">
-                            Crop #{crop.crop_id}
-                          </span>
+                {analysis.crops.map(
+                  (crop) => (
+                    <div
+                      key={crop.crop_id}
+                      className="rounded-xl border border-white/10 bg-white/[0.02] p-4"
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-md bg-emerald-400/10 px-2 py-1 text-xs font-medium text-emerald-400">
+                              Crop #
+                              {crop.crop_id}
+                            </span>
 
-                          <span className="text-sm font-medium">
-                            {crop.crop}
-                          </span>
+                            <span className="text-sm font-medium">
+                              {crop.crop}
+                            </span>
+                          </div>
+
+                          <p className="mt-2 text-xs text-white/40">
+                            Crop confidence:{" "}
+                            {(
+                              crop.confidence *
+                              100
+                            ).toFixed(0)}
+                            %
+                          </p>
                         </div>
 
-                        <p className="mt-2 text-xs text-white/40">
-                          Crop confidence:{" "}
-                          {(
-                            crop.confidence * 100
-                          ).toFixed(0)}
-                          %
-                        </p>
+                        <div className="text-left md:text-right">
+                          <p className="text-sm font-medium">
+                            {
+                              crop.disease_count
+                            }{" "}
+                            disease{" "}
+                            {crop.disease_count ===
+                            1
+                              ? "detection"
+                              : "detections"}
+                          </p>
+
+                          <p className="mt-1 text-xs text-white/30">
+                            {crop.disease_count >
+                            0
+                              ? "Disease detected"
+                              : "No disease detected"}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="text-left md:text-right">
-                        <p className="text-sm font-medium">
-                          {crop.disease_count}{" "}
-                          disease{" "}
-                          {crop.disease_count === 1
-                            ? "detection"
-                            : "detections"}
-                        </p>
+                      {/* Diseases for this crop */}
 
-                        <p className="mt-1 text-xs text-white/30">
-                          {crop.disease_count > 0
-                            ? "Disease detected"
-                            : "No disease detected"}
-                        </p>
-                      </div>
-                    </div>
+                      {crop.diseases
+                        .length > 0 && (
+                        <div className="mt-4 space-y-2">
+                          {crop.diseases.map(
+                            (
+                              disease,
+                              index
+                            ) => (
+                              <div
+                                key={`${crop.crop_id}-${index}`}
+                                className="flex flex-col gap-2 rounded-lg bg-red-400/[0.05] p-3 sm:flex-row sm:items-center sm:justify-between"
+                              >
+                                <div>
+                                  <p className="text-sm text-red-300">
+                                    {
+                                      disease.disease
+                                    }
+                                  </p>
 
-                    {/* Diseases for this crop */}
+                                  {disease.affected_area_percent !==
+                                    undefined && (
+                                    <p className="mt-1 text-xs text-white/40">
+                                      Affected
+                                      area:{" "}
+                                      {disease.affected_area_percent.toFixed(
+                                        1
+                                      )}
+                                      %
+                                    </p>
+                                  )}
+                                </div>
 
-                    {crop.diseases.length > 0 && (
-                      <div className="mt-4 space-y-2">
-                        {crop.diseases.map(
-                          (disease, index) => (
-                            <div
-                              key={`${crop.crop_id}-${index}`}
-                              className="flex flex-col gap-2 rounded-lg bg-red-400/[0.05] p-3 sm:flex-row sm:items-center sm:justify-between"
-                            >
-                              <div>
-                                <p className="text-sm text-red-300">
-                                  {disease.disease}
-                                </p>
-
-                                {disease.affected_area_percent !==
-                                  undefined && (
-                                  <p className="mt-1 text-xs text-white/40">
-                                    Affected area:{" "}
-                                    {disease.affected_area_percent.toFixed(
-                                      1
+                                <div className="text-left sm:text-right">
+                                  <p className="text-sm font-semibold">
+                                    {(
+                                      disease.confidence *
+                                      100
+                                    ).toFixed(
+                                      0
                                     )}
                                     %
                                   </p>
-                                )}
-                              </div>
 
-                              <div className="text-left sm:text-right">
-                                <p className="text-sm font-semibold">
-                                  {(
-                                    disease.confidence *
-                                    100
-                                  ).toFixed(0)}
-                                  %
-                                </p>
-
-                                <p className="text-xs text-white/30">
-                                  confidence
-                                </p>
+                                  <p className="text-xs text-white/30">
+                                    confidence
+                                  </p>
+                                </div>
                               </div>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                            )
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
               </div>
             </div>
           </div>
