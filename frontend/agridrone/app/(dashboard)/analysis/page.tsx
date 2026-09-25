@@ -23,7 +23,7 @@ import type {
   DiseaseDetection,
 } from "@/components/analysis/types";
 
-export default function DashboardPage() {
+export default function AnalysisPage() {
   const [analysis, setAnalysis] =
     useState<AnalysisResult | null>(null);
 

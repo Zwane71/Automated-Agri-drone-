@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  analyzeCameraFrame,
+  Camera,
+  CircleAlert,
+  Play,
+  Square,
+} from "lucide-react";
+
+import {
   getCameraStreamUrl,
   testCamera,
 } from "@/lib/api";
@@ -18,57 +24,41 @@ interface CameraDevice {
   streamUrl?: string;
 }
 
-interface DiseaseResult {
-  disease: string;
-  confidence: number;
-  box?: [number, number, number, number];
-  mask_pixels?: number;
-  affected_area_percent?: number;
-}
-
-interface CropResult {
-  crop_id: number;
-  crop: string;
-  confidence: number;
-  box: [number, number, number, number];
-  disease_count: number;
-  diseases: DiseaseResult[];
-}
-
-interface AnalysisResult {
-  image_width: number;
-  image_height: number;
-  crop_count: number;
-  diseased_crop_count: number;
-  disease_count: number;
-  crops: CropResult[];
-}
-
 export default function CameraMonitor() {
   const [cameras, setCameras] = useState<CameraDevice[]>([]);
   const [activeCameraId, setActiveCameraId] = useState("");
-
   const [testing, setTesting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [monitoring, setMonitoring] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-
-  const [analysis, setAnalysis] =
-    useState<AnalysisResult | null>(null);
-
   const [message, setMessage] = useState(
-    "Select a camera to begin."
+    "Select an input to begin."
   );
+
+  const browserVideoRef =
+    useRef<HTMLVideoElement | null>(null);
+
+  const browserStreamRef =
+    useRef<MediaStream | null>(null);
 
   useEffect(() => {
     loadSavedCameras();
   }, []);
 
+  const activeCamera = useMemo(() => {
+    return cameras.find(
+      (camera) => camera.id === activeCameraId
+    );
+  }, [cameras, activeCameraId]);
+
+  /*
+   * Load cameras saved from Settings.
+   */
   function loadSavedCameras() {
     try {
-      const savedCameras = localStorage.getItem(
-        "agri-drone-cameras"
-      );
+      const savedCameras =
+        localStorage.getItem(
+          "agri-drone-cameras"
+        );
 
       const savedActiveCamera =
         localStorage.getItem(
@@ -83,27 +73,116 @@ export default function CameraMonitor() {
       }
 
       if (savedActiveCamera) {
-        setActiveCameraId(savedActiveCamera);
+        setActiveCameraId(
+          savedActiveCamera
+        );
       }
-    } catch {
+    } catch (error) {
+      console.error(error);
+
       setMessage(
         "Could not load saved camera settings."
       );
     }
   }
 
-  const activeCamera = useMemo(() => {
-    return cameras.find(
-      (camera) => camera.id === activeCameraId
-    );
-  }, [cameras, activeCameraId]);
+  /*
+   * Stop browser camera if one is running.
+   */
+  function stopBrowserCamera() {
+    browserStreamRef.current
+      ?.getTracks()
+      .forEach((track) => {
+        track.stop();
+      });
 
-  const ipCameras = useMemo(() => {
-    return cameras.filter(
-      (camera) => camera.type === "ip"
-    );
-  }, [cameras]);
+    browserStreamRef.current = null;
 
+    if (browserVideoRef.current) {
+      browserVideoRef.current.srcObject =
+        null;
+    }
+  }
+
+  /*
+   * Stop the currently active input.
+   */
+  function stopMonitoring() {
+    stopBrowserCamera();
+
+    setMonitoring(false);
+    setConnected(false);
+  }
+
+  /*
+   * Start a browser camera.
+   */
+  async function startBrowserCamera() {
+    if (!activeCamera?.deviceId) {
+      setMessage(
+        "Browser camera device is not available."
+      );
+      return;
+    }
+
+    try {
+      setMessage(
+        "Starting browser camera..."
+      );
+
+      stopBrowserCamera();
+
+      const stream =
+        await navigator.mediaDevices.getUserMedia(
+          {
+            video: {
+              deviceId: {
+                exact:
+                  activeCamera.deviceId,
+              },
+              width: {
+                ideal: 640,
+              },
+              height: {
+                ideal: 480,
+              },
+            },
+            audio: false,
+          }
+        );
+
+      browserStreamRef.current = stream;
+
+      if (browserVideoRef.current) {
+        browserVideoRef.current.srcObject =
+          stream;
+
+        await browserVideoRef.current.play();
+      }
+
+      setConnected(true);
+      setMonitoring(true);
+
+      setMessage(
+        `${activeCamera.name} is live.`
+      );
+    } catch (error) {
+      console.error(error);
+
+      setConnected(false);
+      setMonitoring(false);
+
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not access the browser camera."
+      );
+    }
+  }
+
+  /*
+   * Test an IP camera.
+   */
   async function handleTestCamera() {
     if (
       !activeCamera ||
@@ -111,20 +190,26 @@ export default function CameraMonitor() {
       !activeCamera.streamUrl
     ) {
       setConnected(false);
+
       setMessage(
-        "Select a wireless/IP camera first."
+        "Select an IP camera first."
       );
+
       return;
     }
 
     setTesting(true);
     setConnected(false);
-    setMessage("Testing camera connection...");
+
+    setMessage(
+      "Testing camera connection..."
+    );
 
     try {
-      const result = await testCamera(
-        activeCamera.streamUrl
-      );
+      const result =
+        await testCamera(
+          activeCamera.streamUrl
+        );
 
       if (!result.connected) {
         setConnected(false);
@@ -147,6 +232,8 @@ export default function CameraMonitor() {
           : result.message
       );
     } catch (error) {
+      console.error(error);
+
       setConnected(false);
       setMonitoring(false);
 
@@ -160,7 +247,14 @@ export default function CameraMonitor() {
     }
   }
 
-  function selectCamera(camera: CameraDevice) {
+  /*
+   * Select an input.
+   */
+  function selectCamera(
+    camera: CameraDevice
+  ) {
+    stopMonitoring();
+
     setActiveCameraId(camera.id);
 
     localStorage.setItem(
@@ -168,118 +262,134 @@ export default function CameraMonitor() {
       camera.id
     );
 
-    setConnected(false);
-    setMonitoring(false);
-    setAnalysis(null);
-
     setMessage(
       `${camera.name} selected.`
     );
   }
 
-  function toggleMonitoring() {
-    if (!activeCamera?.streamUrl) {
+  /*
+   * Start/stop the selected input.
+   */
+  async function toggleMonitoring() {
+    if (!activeCamera) {
       setMessage(
-        "Select and test an IP camera first."
+        "Select a camera first."
       );
+
       return;
     }
 
-    if (!connected) {
+    /*
+     * Stop current input.
+     */
+    if (monitoring) {
+      stopMonitoring();
+
       setMessage(
-        "Test the camera connection before starting monitoring."
+        `${activeCamera.name} stopped.`
       );
+
       return;
     }
 
-    setMonitoring((current) => !current);
-  }
-
-  async function handleAnalyze() {
+    /*
+     * Browser camera.
+     */
     if (
-      !activeCamera ||
-      activeCamera.type !== "ip" ||
-      !activeCamera.streamUrl
+      activeCamera.type === "browser"
     ) {
-      setMessage(
-        "Select an IP camera first."
-      );
+      await startBrowserCamera();
       return;
     }
 
-    if (!connected) {
-      setMessage(
-        "Test the camera connection first."
-      );
-      return;
-    }
-
-    setAnalyzing(true);
-    setMessage(
-      "Capturing camera frame and running AI analysis..."
-    );
-
-    try {
-      const result =
-        await analyzeCameraFrame(
-          activeCamera.streamUrl
+    /*
+     * IP camera.
+     */
+    if (
+      activeCamera.type === "ip"
+    ) {
+      if (!activeCamera.streamUrl) {
+        setMessage(
+          "This IP camera has no stream URL."
         );
 
-      setAnalysis(result);
+        return;
+      }
+
+      if (!connected) {
+        setMessage(
+          "Test the IP camera connection first."
+        );
+
+        return;
+      }
+
+      setMonitoring(true);
 
       setMessage(
-        `Analysis complete. ${result.crop_count} crop${
-          result.crop_count === 1 ? "" : "s"
-        } detected.`
+        `${activeCamera.name} is live.`
       );
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "AI analysis failed."
-      );
-    } finally {
-      setAnalyzing(false);
     }
   }
+
+  /*
+   * Clean up browser camera when leaving page.
+   */
+  useEffect(() => {
+    return () => {
+      stopBrowserCamera();
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
+
       {/* Camera selector */}
+
       <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+
           <div>
             <h2 className="text-lg font-medium">
-              Camera Monitoring
+              Camera Input
             </h2>
 
             <p className="mt-1 text-sm text-white/40">
-              Select a connected camera and monitor
-              the live field feed.
+              Select and manage the camera input used by the system.
             </p>
           </div>
 
           <CameraStatus
-            connected={connected}
+            connected={
+              connected && monitoring
+            }
             message={message}
           />
+
         </div>
 
-        {ipCameras.length === 0 ? (
+        {/* Camera list */}
+
+        {cameras.length === 0 ? (
           <div className="mt-6 rounded-xl border border-dashed border-white/10 p-8 text-center">
+
+            <Camera className="mx-auto mb-3 h-8 w-8 text-white/20" />
+
             <p className="text-sm text-white/50">
-              No wireless/IP cameras are configured.
+              No camera inputs are configured.
             </p>
 
             <p className="mt-2 text-xs text-white/30">
-              Add a wireless camera from Settings
-              first.
+              Add an IP camera or configure a browser camera from Settings.
             </p>
+
           </div>
         ) : (
-          <div className="mt-6">
+          <div className="mt-6 space-y-3">
+
             <label className="text-xs text-white/40">
-              Active Camera
+              Active Input
             </label>
 
             <select
@@ -305,69 +415,112 @@ export default function CameraMonitor() {
                 Select camera
               </option>
 
-              {ipCameras.map((camera) => (
+              {cameras.map((camera) => (
                 <option
                   key={camera.id}
                   value={camera.id}
                   className="bg-black"
                 >
-                  {camera.name}
+                  {camera.name} —{" "}
+                  {camera.type === "ip"
+                    ? "IP Camera"
+                    : "Browser Camera"}
                 </option>
               ))}
             </select>
 
-            {activeCamera?.streamUrl && (
-              <p className="mt-2 truncate text-xs text-white/30">
-                {activeCamera.streamUrl}
-              </p>
+            {activeCamera && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+
+                <div className="flex items-center justify-between">
+
+                  <div>
+                    <p className="text-sm font-medium">
+                      {activeCamera.name}
+                    </p>
+
+                    <p className="mt-1 text-xs text-white/40">
+                      {activeCamera.type === "ip"
+                        ? "IP / Wireless Camera"
+                        : "Browser Camera"}
+                    </p>
+                  </div>
+
+                  <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-white/50">
+                    {activeCamera.type === "ip"
+                      ? "IP"
+                      : "Browser"}
+                  </span>
+
+                </div>
+
+                {activeCamera.type === "ip" &&
+                  activeCamera.streamUrl && (
+                    <p className="mt-3 truncate text-xs text-white/30">
+                      {activeCamera.streamUrl}
+                    </p>
+                  )}
+
+              </div>
             )}
+
           </div>
         )}
 
-        {activeCamera?.type === "ip" && (
+        {/* Controls */}
+
+        {activeCamera && (
           <div className="mt-5 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleTestCamera}
-              disabled={testing}
-              className="rounded-xl border border-white/10 px-4 py-2.5 text-sm transition hover:bg-white/10 disabled:opacity-50"
-            >
-              {testing
-                ? "Testing..."
-                : "Test Camera"}
-            </button>
+
+            {activeCamera.type === "ip" && (
+              <button
+                type="button"
+                onClick={
+                  handleTestCamera
+                }
+                disabled={testing}
+                className="rounded-xl border border-white/10 px-4 py-2.5 text-sm transition hover:bg-white/10 disabled:opacity-50"
+              >
+                {testing
+                  ? "Testing..."
+                  : "Test Camera"}
+              </button>
+            )}
 
             <button
               type="button"
-              onClick={toggleMonitoring}
-              disabled={!connected}
-              className="rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={
+                toggleMonitoring
+              }
+              className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-black transition hover:bg-white/90"
             >
-              {monitoring
-                ? "Stop Monitoring"
-                : "Start Monitoring"}
+              {monitoring ? (
+                <>
+                  <Square className="h-4 w-4" />
+                  Stop Monitoring
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  Start Monitoring
+                </>
+              )}
             </button>
 
-            <button
-              type="button"
-              onClick={handleAnalyze}
-              disabled={!connected || analyzing}
-              className="rounded-xl border border-white/10 px-4 py-2.5 text-sm transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {analyzing
-                ? "Analyzing..."
-                : "Analyze Frame"}
-            </button>
           </div>
         )}
+
       </section>
 
-      {/* Live feed + AI overlay */}
+      {/* Live feed */}
+
       <section className="overflow-hidden rounded-2xl border border-white/10 bg-black">
+
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+
           <div>
             <h2 className="text-sm font-medium">
-              Live Feed
+              Live Input
             </h2>
 
             <p className="mt-1 text-xs text-white/30">
@@ -378,52 +531,54 @@ export default function CameraMonitor() {
 
           {monitoring && (
             <div className="flex items-center gap-2 text-xs text-red-300">
+
               <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
+
               LIVE
+
             </div>
           )}
+
         </div>
 
         <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-black">
+
+          {/* Browser camera */}
+
           {monitoring &&
-          connected &&
-          activeCamera?.type === "ip" &&
-          activeCamera.streamUrl ? (
-            <div className="relative h-full w-full">
+            activeCamera?.type ===
+              "browser" && (
+              <video
+                ref={browserVideoRef}
+                muted
+                playsInline
+                className="h-full w-full object-contain"
+              />
+            )}
+
+          {/* IP camera */}
+
+          {monitoring &&
+            activeCamera?.type === "ip" &&
+            activeCamera.streamUrl && (
               <img
                 src={getCameraStreamUrl(
                   activeCamera.streamUrl
                 )}
                 alt={`Live feed from ${activeCamera.name}`}
-                className="absolute inset-0 h-full w-full object-contain"
+                className="h-full w-full object-contain"
               />
+            )}
 
-              {/* AI overlay */}
-              {analysis && (
-                <div className="absolute inset-0">
-                  {analysis.crops.map(
-                    (crop) => (
-                      <CropOverlay
-                        key={crop.crop_id}
-                        crop={crop}
-                        imageWidth={
-                          analysis.image_width
-                        }
-                        imageHeight={
-                          analysis.image_height
-                        }
-                      />
-                    )
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
+          {/* No active feed */}
+
+          {!monitoring && (
             <div className="text-center">
+
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03]">
-                <span className="text-xl">
-                  📷
-                </span>
+
+                <Camera className="h-6 w-6 text-white/20" />
+
               </div>
 
               <p className="mt-4 text-sm text-white/50">
@@ -431,152 +586,22 @@ export default function CameraMonitor() {
               </p>
 
               <p className="mt-1 text-xs text-white/30">
-                Select a camera, test the connection,
-                then start monitoring.
+                Select an input and start monitoring.
               </p>
+
             </div>
           )}
+
         </div>
+
       </section>
 
-      {/* AI statistics */}
+      {/* Input information */}
+
       <section className="grid gap-4 md:grid-cols-3">
-        <StatCard
-          label="Crop Count"
-          value={
-            analysis
-              ? analysis.crop_count.toString()
-              : "—"
-          }
-        />
 
-        <StatCard
-          label="Diseased Crops"
-          value={
-            analysis
-              ? analysis.diseased_crop_count.toString()
-              : "—"
-          }
-        />
-
-        <StatCard
-          label="Disease Findings"
-          value={
-            analysis
-              ? analysis.disease_count.toString()
-              : "—"
-          }
-        />
-      </section>
-
-      {/* AI results */}
-      {analysis && (
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-          <div className="mb-5">
-            <h2 className="text-lg font-medium">
-              AI Analysis Results
-            </h2>
-
-            <p className="mt-1 text-sm text-white/40">
-              Results from the latest captured camera
-              frame.
-            </p>
-          </div>
-
-          {analysis.crops.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-white/10 p-6 text-center">
-              <p className="text-sm text-white/50">
-                No crops were detected in this frame.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {analysis.crops.map((crop) => (
-                <div
-                  key={crop.crop_id}
-                  className="rounded-xl border border-white/10 bg-black/10 p-4"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-medium">
-                          {crop.crop}
-                        </h3>
-
-                        <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] text-green-300">
-                          {(
-                            crop.confidence * 100
-                          ).toFixed(1)}
-                          %
-                        </span>
-                      </div>
-
-                      <p className="mt-1 text-xs text-white/30">
-                        Crop #{crop.crop_id}
-                      </p>
-                    </div>
-
-                    <div className="text-xs text-white/40">
-                      {crop.disease_count} disease
-                      {crop.disease_count === 1
-                        ? ""
-                        : "s"}
-                    </div>
-                  </div>
-
-                  {crop.diseases.length > 0 && (
-                    <div className="mt-4 space-y-2">
-                      {crop.diseases.map(
-                        (disease, index) => (
-                          <div
-                            key={`${crop.crop_id}-${disease.disease}-${index}`}
-                            className="rounded-lg border border-red-500/10 bg-red-500/[0.04] p-3"
-                          >
-                            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                              <div>
-                                <p className="text-sm text-red-200">
-                                  {formatDiseaseName(
-                                    disease.disease
-                                  )}
-                                </p>
-
-                                <p className="mt-1 text-xs text-white/30">
-                                  Confidence:{" "}
-                                  {(
-                                    disease.confidence *
-                                    100
-                                  ).toFixed(1)}
-                                  %
-                                </p>
-                              </div>
-
-                              {typeof disease.affected_area_percent ===
-                                "number" && (
-                                <span className="text-xs text-white/40">
-                                  Affected:{" "}
-                                  {disease.affected_area_percent.toFixed(
-                                    2
-                                  )}
-                                  %
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Monitoring information */}
-      <section className="grid gap-4 md:grid-cols-3">
         <InfoCard
-          label="Camera"
+          label="Active Input"
           value={
             activeCamera?.name ||
             "Not selected"
@@ -584,181 +609,43 @@ export default function CameraMonitor() {
         />
 
         <InfoCard
-          label="Connection"
+          label="Type"
           value={
-            connected
-              ? "Connected"
-              : "Offline"
+            activeCamera
+              ? activeCamera.type === "ip"
+                ? "IP / Wireless"
+                : "Browser Camera"
+              : "—"
           }
         />
 
         <InfoCard
-          label="AI System"
+          label="Status"
           value={
-            analysis
-              ? "Analysis complete"
-              : "Ready"
+            monitoring && connected
+              ? "Live"
+              : monitoring
+              ? "Starting"
+              : "Offline"
           }
         />
+
       </section>
-    </div>
-  );
-}
 
-interface CropOverlayProps {
-  crop: CropResult;
-  imageWidth: number;
-  imageHeight: number;
-}
+      {/* Information */}
 
-function CropOverlay({
-  crop,
-  imageWidth,
-  imageHeight,
-}: CropOverlayProps) {
-  const [x1, y1, x2, y2] = crop.box;
+      {!activeCamera && (
+        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
 
-  const left =
-    (x1 / imageWidth) * 100;
+          <CircleAlert className="h-4 w-4 text-white/30" />
 
-  const top =
-    (y1 / imageHeight) * 100;
+          <p className="text-sm text-white/40">
+            Select a camera input to begin.
+          </p>
 
-  const width =
-    ((x2 - x1) / imageWidth) * 100;
-
-  const height =
-    ((y2 - y1) / imageHeight) * 100;
-
-  return (
-    <div
-      className="absolute border-2 border-green-400"
-      style={{
-        left: `${left}%`,
-        top: `${top}%`,
-        width: `${width}%`,
-        height: `${height}%`,
-      }}
-    >
-      <div className="absolute -top-6 left-0 whitespace-nowrap rounded bg-green-400 px-2 py-1 text-[10px] font-medium text-black">
-        {crop.crop}{" "}
-        {(crop.confidence * 100).toFixed(1)}%
-      </div>
-
-      {crop.diseases.map(
-        (disease, index) => (
-          <DiseaseOverlay
-            key={`${disease.disease}-${index}`}
-            disease={disease}
-            parentBox={crop.box}
-          />
-        )
+        </div>
       )}
-    </div>
-  );
-}
 
-interface DiseaseOverlayProps {
-  disease: DiseaseResult;
-  parentBox: [number, number, number, number];
-}
-
-function DiseaseOverlay({
-  disease,
-  parentBox,
-}: DiseaseOverlayProps) {
-  if (!disease.box) {
-    return null;
-  }
-
-  const [
-    cropX1,
-    cropY1,
-    cropX2,
-    cropY2,
-  ] = parentBox;
-
-  const [
-    diseaseX1,
-    diseaseY1,
-    diseaseX2,
-    diseaseY2,
-  ] = disease.box;
-
-  const cropWidth =
-    cropX2 - cropX1;
-
-  const cropHeight =
-    cropY2 - cropY1;
-
-  if (
-    cropWidth <= 0 ||
-    cropHeight <= 0
-  ) {
-    return null;
-  }
-
-  const left =
-    ((diseaseX1 - cropX1) /
-      cropWidth) *
-    100;
-
-  const top =
-    ((diseaseY1 - cropY1) /
-      cropHeight) *
-    100;
-
-  const width =
-    ((diseaseX2 - diseaseX1) /
-      cropWidth) *
-    100;
-
-  const height =
-    ((diseaseY2 - diseaseY1) /
-      cropHeight) *
-    100;
-
-  return (
-    <div
-      className="absolute border-2 border-red-400"
-      style={{
-        left: `${left}%`,
-        top: `${top}%`,
-        width: `${width}%`,
-        height: `${height}%`,
-      }}
-    >
-      <div className="absolute -bottom-5 left-0 whitespace-nowrap rounded bg-red-400 px-2 py-1 text-[9px] font-medium text-black">
-        {formatDiseaseName(
-          disease.disease
-        )}{" "}
-        {(disease.confidence * 100).toFixed(
-          1
-        )}
-        %
-      </div>
-    </div>
-  );
-}
-
-interface StatCardProps {
-  label: string;
-  value: string;
-}
-
-function StatCard({
-  label,
-  value,
-}: StatCardProps) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-      <p className="text-xs text-white/40">
-        {label}
-      </p>
-
-      <p className="mt-2 text-2xl font-semibold">
-        {value}
-      </p>
     </div>
   );
 }
@@ -774,6 +661,7 @@ function InfoCard({
 }: InfoCardProps) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+
       <p className="text-xs text-white/40">
         {label}
       </p>
@@ -781,17 +669,7 @@ function InfoCard({
       <p className="mt-2 text-sm font-medium">
         {value}
       </p>
+
     </div>
   );
-}
-
-function formatDiseaseName(
-  disease: string
-) {
-  return disease
-    .replace(/^cabbage_/, "")
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (letter) =>
-      letter.toUpperCase()
-    );
 }
