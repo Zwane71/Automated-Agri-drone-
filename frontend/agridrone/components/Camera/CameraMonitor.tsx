@@ -952,6 +952,7 @@ export default function CameraMonitor() {
         )}
       </section>
 
+     
       {/* Live feed */}
       <section className="overflow-hidden rounded-2xl border border-white/10 bg-black">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
@@ -961,8 +962,7 @@ export default function CameraMonitor() {
             </h2>
 
             <p className="mt-1 text-xs text-white/30">
-              {activeCamera?.name ||
-                "No camera selected"}
+              {activeCamera?.name || "No camera selected"}
             </p>
           </div>
 
@@ -974,16 +974,15 @@ export default function CameraMonitor() {
           )}
         </div>
 
-        <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-black">
+        <div className="relative aspect-video w-full overflow-hidden bg-black">
           {/* Browser camera */}
-          {activeCamera?.type ===
-            "browser" && (
+          {activeCamera?.type === "browser" && (
             <video
               ref={browserVideoRef}
               autoPlay
               muted
               playsInline
-              className="h-full w-full object-contain"
+              className="absolute inset-0 block h-full w-full object-cover"
             />
           )}
 
@@ -992,53 +991,45 @@ export default function CameraMonitor() {
             activeCamera?.type === "ip" &&
             activeCamera.streamUrl && (
               <img
-                src={getCameraStreamUrl(
-                  activeCamera.streamUrl
-                )}
+                src={getCameraStreamUrl(activeCamera.streamUrl)}
                 alt={`Live feed from ${activeCamera.name}`}
-                className="h-full w-full object-contain"
+                className="absolute inset-0 block h-full w-full object-cover"
               />
             )}
 
           {/* No camera selected */}
           {!activeCamera && (
-            <div className="text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03]">
-                <Camera className="h-6 w-6 text-white/20" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center">
+                <Camera className="mx-auto h-8 w-8 text-white/20" />
+
+                <p className="mt-4 text-sm text-white/50">
+                  No camera selected.
+                </p>
               </div>
-
-              <p className="mt-4 text-sm text-white/50">
-                No camera selected.
-              </p>
-
-              <p className="mt-1 text-xs text-white/30">
-                Select a camera input to
-                begin.
-              </p>
             </div>
           )}
 
           {/* Camera selected but not running */}
-          {activeCamera &&
-            !monitoring && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                <div className="text-center">
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03]">
-                    <Camera className="h-6 w-6 text-white/20" />
-                  </div>
+          {activeCamera && !monitoring && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+              <div className="text-center">
+                <Camera className="mx-auto h-8 w-8 text-white/20" />
 
-                  <p className="mt-4 text-sm text-white/50">
-                    Camera feed is not active.
-                  </p>
+                <p className="mt-4 text-sm text-white/50">
+                  Camera feed is not active.
+                </p>
 
-                  <p className="mt-1 text-xs text-white/30">
-                    Click Start Monitoring.
-                  </p>
-                </div>
+                <p className="mt-1 text-xs text-white/30">
+                  Click Start Monitoring.
+                </p>
               </div>
-            )}
+            </div>
+          )}
         </div>
       </section>
+
+
 
       {/* Camera information */}
       <section className="grid gap-4 md:grid-cols-3">

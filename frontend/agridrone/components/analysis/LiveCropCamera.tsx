@@ -951,7 +951,7 @@ export default function LiveCropCamera({
             autoPlay
             muted
             playsInline
-            className="h-full w-full object-contain"
+            className="h-full w-full object-cover"
           />
         ) : (
           <img
