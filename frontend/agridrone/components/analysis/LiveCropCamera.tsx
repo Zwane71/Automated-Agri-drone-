@@ -49,33 +49,24 @@ export default function LiveCropCamera({
   camera,
   onDetection,
 }: LiveCropCameraProps) {
-  const videoRef =
-    useRef<HTMLVideoElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  const canvasRef =
-    useRef<HTMLCanvasElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const streamRef =
-    useRef<MediaStream | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const intervalRef =
-    useRef<ReturnType<typeof setInterval> | null>(
-      null
-    );
+    useRef<ReturnType<typeof setInterval> | null>(null);
 
   const analyzingRef = useRef(false);
 
-  const [running, setRunning] =
-    useState(false);
+  const [running, setRunning] = useState(false);
 
-  const [loading, setLoading] =
-    useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const [status, setStatus] =
-    useState("Ready");
+  const [status, setStatus] = useState("Ready");
 
   const [analysisResult, setAnalysisResult] =
     useState<AnalysisResult | null>(null);
@@ -84,10 +75,20 @@ export default function LiveCropCamera({
    * Stop the browser camera stream.
    */
   const stopBrowserStream = useCallback(() => {
+    console.log("[CAMERA] Stopping browser stream...");
+
     if (streamRef.current) {
       streamRef.current
         .getTracks()
-        .forEach((track) => track.stop());
+        .forEach((track) => {
+          console.log(
+            "[CAMERA] Stopping track:",
+            track.kind,
+            track.label
+          );
+
+          track.stop();
+        });
 
       streamRef.current = null;
     }
@@ -95,24 +96,32 @@ export default function LiveCropCamera({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+
+    console.log("[CAMERA] Browser stream stopped");
   }, []);
 
   /*
    * Stop the AI analysis loop.
    */
   const stopAnalysisLoop = useCallback(() => {
+    console.log("[CAMERA] Stopping analysis loop...");
+
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
 
     analyzingRef.current = false;
+
+    console.log("[CAMERA] Analysis loop stopped");
   }, []);
 
   /*
    * Completely stop the selected camera.
    */
   const stopCamera = useCallback(() => {
+    console.log("[CAMERA] stopCamera()");
+
     stopAnalysisLoop();
     stopBrowserStream();
 
@@ -130,6 +139,11 @@ export default function LiveCropCamera({
    */
   const handleAnalysisResult = useCallback(
     (result: AnalysisResult) => {
+      console.log(
+        "[CAMERA] AI analysis result:",
+        result
+      );
+
       setAnalysisResult(result);
 
       const detectedCrops =
@@ -139,6 +153,16 @@ export default function LiveCropCamera({
         detectedCrops.flatMap(
           (crop) => crop.diseases || []
         );
+
+      console.log(
+        "[CAMERA] Crops detected:",
+        detectedCrops.length
+      );
+
+      console.log(
+        "[CAMERA] Diseases detected:",
+        detectedDiseases.length
+      );
 
       onDetection?.(
         detectedCrops,
@@ -157,26 +181,60 @@ export default function LiveCropCamera({
    */
   const analyzeBrowserFrame =
     useCallback(async () => {
+      console.log(
+        "[CAMERA] analyzeBrowserFrame() called"
+      );
+
       if (
         !camera ||
         camera.type !== "browser" ||
         !videoRef.current ||
         !canvasRef.current
       ) {
+        console.log(
+          "[CAMERA] Browser frame analysis skipped:",
+          {
+            hasCamera: !!camera,
+            cameraType: camera?.type,
+            hasVideo: !!videoRef.current,
+            hasCanvas: !!canvasRef.current,
+          }
+        );
+
         return;
       }
 
       if (analyzingRef.current) {
+        console.log(
+          "[CAMERA] Analysis already running. Skipping frame."
+        );
+
         return;
       }
 
       const video = videoRef.current;
+
       const canvas = canvasRef.current;
+
+      console.log(
+        "[CAMERA] Video state:",
+        {
+          readyState: video.readyState,
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+          paused: video.paused,
+          ended: video.ended,
+        }
+      );
 
       if (
         video.readyState <
         HTMLMediaElement.HAVE_CURRENT_DATA
       ) {
+        console.log(
+          "[CAMERA] Video does not have current data yet."
+        );
+
         return;
       }
 
@@ -184,22 +242,65 @@ export default function LiveCropCamera({
         video.videoWidth === 0 ||
         video.videoHeight === 0
       ) {
+        console.log(
+          "[CAMERA] Video dimensions are zero."
+        );
+
         return;
       }
 
       analyzingRef.current = true;
 
       try {
+        console.log(
+          "========================================"
+        );
+
+        console.log(
+          "[CAMERA] analyzeBrowserFrame START"
+        );
+
+        console.log(
+          "[CAMERA] Camera:",
+          camera
+        );
+
+        console.log(
+          "[CAMERA] Camera type:",
+          camera.type
+        );
+
+        console.log(
+          "[CAMERA] Device ID:",
+          camera.deviceId
+        );
+
+        /*
+         * Prepare canvas.
+         */
         canvas.width = video.videoWidth;
+
         canvas.height = video.videoHeight;
+
+        console.log(
+          "[CAMERA] Canvas size:",
+          `${canvas.width}x${canvas.height}`
+        );
 
         const context =
           canvas.getContext("2d");
 
         if (!context) {
+          console.error(
+            "[CAMERA] Could not get canvas context."
+          );
+
           return;
         }
 
+        /*
+         * Capture current video frame.
+         */
         context.drawImage(
           video,
           0,
@@ -208,6 +309,13 @@ export default function LiveCropCamera({
           canvas.height
         );
 
+        console.log(
+          "[CAMERA] Video frame drawn to canvas."
+        );
+
+        /*
+         * Convert frame to JPEG.
+         */
         const blob =
           await new Promise<Blob | null>(
             (resolve) => {
@@ -220,9 +328,24 @@ export default function LiveCropCamera({
           );
 
         if (!blob) {
+          console.error(
+            "[CAMERA] canvas.toBlob() returned null."
+          );
+
           return;
         }
 
+        console.log(
+          "[CAMERA] Blob created:",
+          {
+            type: blob.type,
+            size: blob.size,
+          }
+        );
+
+        /*
+         * Create File.
+         */
         const file = new File(
           [blob],
           "camera-frame.jpg",
@@ -231,16 +354,93 @@ export default function LiveCropCamera({
           }
         );
 
+        console.log(
+          "[CAMERA] File created:",
+          {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+          }
+        );
+
+        console.log(
+          "[CAMERA] About to call analyzeFull..."
+        );
+
         setStatus("Analyzing frame...");
 
+        /*
+         * Send frame to backend.
+         */
         const result =
           await analyzeFull(file);
 
+        console.log(
+          "[CAMERA] analyzeFull() returned successfully."
+        );
+
+        console.log(
+          "[CAMERA] Result:",
+          result
+        );
+
         handleAnalysisResult(result);
+
+        console.log(
+          "[CAMERA] analyzeBrowserFrame SUCCESS"
+        );
+
+        console.log(
+          "========================================"
+        );
       } catch (err) {
         console.error(
-          "Browser camera analysis error:",
+          "========================================"
+        );
+
+        console.error(
+          "[CAMERA] Browser camera analysis FAILED"
+        );
+
+        console.error(
+          "[CAMERA] Error:",
           err
+        );
+
+        console.error(
+          "[CAMERA] Error name:",
+          err instanceof Error
+            ? err.name
+            : "unknown"
+        );
+
+        console.error(
+          "[CAMERA] Error message:",
+          err instanceof Error
+            ? err.message
+            : String(err)
+        );
+
+        console.error(
+          "[CAMERA] Error stack:",
+          err instanceof Error
+            ? err.stack
+            : "no stack"
+        );
+
+        console.error(
+          "[CAMERA] Browser online:",
+          navigator.onLine
+        );
+
+        console.error(
+          "[CAMERA] Current page:",
+          window.location.href
+        );
+
+        console.error(
+          "[CAMERA] Current origin:",
+          window.location.origin
         );
 
         setError(
@@ -248,8 +448,16 @@ export default function LiveCropCamera({
             ? err.message
             : "Failed to analyze camera frame."
         );
+
+        console.error(
+          "========================================"
+        );
       } finally {
         analyzingRef.current = false;
+
+        console.log(
+          "[CAMERA] analyzingRef reset."
+        );
       }
     }, [
       camera,
@@ -261,21 +469,43 @@ export default function LiveCropCamera({
    */
   const analyzeIpFrame =
     useCallback(async () => {
+      console.log(
+        "[CAMERA] analyzeIpFrame() called"
+      );
+
       if (
         !camera ||
         camera.type !== "ip" ||
         !camera.streamUrl
       ) {
+        console.log(
+          "[CAMERA] IP analysis skipped:",
+          {
+            hasCamera: !!camera,
+            cameraType: camera?.type,
+            streamUrl: camera?.streamUrl,
+          }
+        );
+
         return;
       }
 
       if (analyzingRef.current) {
+        console.log(
+          "[CAMERA] IP analysis already running."
+        );
+
         return;
       }
 
       analyzingRef.current = true;
 
       try {
+        console.log(
+          "[CAMERA] Analyzing IP camera:",
+          camera.streamUrl
+        );
+
         setStatus(
           "Analyzing IP camera..."
         );
@@ -285,10 +515,15 @@ export default function LiveCropCamera({
             camera.streamUrl
           );
 
+        console.log(
+          "[CAMERA] IP analysis result:",
+          result
+        );
+
         handleAnalysisResult(result);
       } catch (err) {
         console.error(
-          "IP camera analysis error:",
+          "[CAMERA] IP camera analysis error:",
           err
         );
 
@@ -310,17 +545,39 @@ export default function LiveCropCamera({
    */
   const startBrowserCamera =
     useCallback(async () => {
+      console.log(
+        "========================================"
+      );
+
+      console.log(
+        "[CAMERA] startBrowserCamera()"
+      );
+
+      console.log(
+        "[CAMERA] Selected camera:",
+        camera
+      );
+
       if (
         !camera ||
         camera.type !== "browser"
       ) {
+        console.error(
+          "[CAMERA] Invalid browser camera."
+        );
+
         return;
       }
 
       if (!camera.deviceId) {
+        console.error(
+          "[CAMERA] Browser camera has no device ID."
+        );
+
         setError(
           "The selected browser camera does not have a device ID."
         );
+
         return;
       }
 
@@ -328,11 +585,21 @@ export default function LiveCropCamera({
         setLoading(true);
         setError(null);
         setAnalysisResult(null);
+
         setStatus(
           "Connecting to camera..."
         );
 
         stopBrowserStream();
+
+        console.log(
+          "[CAMERA] Requesting getUserMedia..."
+        );
+
+        console.log(
+          "[CAMERA] Device ID:",
+          camera.deviceId
+        );
 
         const stream =
           await navigator.mediaDevices.getUserMedia(
@@ -352,34 +619,94 @@ export default function LiveCropCamera({
             }
           );
 
+        console.log(
+          "[CAMERA] getUserMedia SUCCESS"
+        );
+
+        console.log(
+          "[CAMERA] Stream:",
+          stream
+        );
+
+        console.log(
+          "[CAMERA] Tracks:",
+          stream.getTracks()
+        );
+
         streamRef.current = stream;
 
         if (videoRef.current) {
+          console.log(
+            "[CAMERA] Attaching stream to video..."
+          );
+
           videoRef.current.srcObject =
             stream;
 
           await videoRef.current.play();
+
+          console.log(
+            "[CAMERA] Video playback started."
+          );
+
+          console.log(
+            "[CAMERA] Video dimensions:",
+            {
+              width: videoRef.current.videoWidth,
+              height: videoRef.current.videoHeight,
+            }
+          );
         }
 
         setRunning(true);
+
         setStatus("Camera running");
+
+        console.log(
+          "[CAMERA] Browser camera is running."
+        );
 
         /*
          * Give the video time to initialize
          * before the first analysis.
          */
         setTimeout(() => {
+          console.log(
+            "[CAMERA] Running first browser analysis..."
+          );
+
           analyzeBrowserFrame();
         }, 1000);
 
+        /*
+         * Analyze every 3 seconds.
+         */
         intervalRef.current =
           setInterval(() => {
+            console.log(
+              "[CAMERA] 3-second analysis interval..."
+            );
+
             analyzeBrowserFrame();
           }, 3000);
       } catch (err) {
         console.error(
-          "Could not start browser camera:",
+          "[CAMERA] Could not start browser camera:",
           err
+        );
+
+        console.error(
+          "[CAMERA] Error name:",
+          err instanceof Error
+            ? err.name
+            : "unknown"
+        );
+
+        console.error(
+          "[CAMERA] Error message:",
+          err instanceof Error
+            ? err.message
+            : String(err)
         );
 
         setRunning(false);
@@ -395,6 +722,14 @@ export default function LiveCropCamera({
         );
       } finally {
         setLoading(false);
+
+        console.log(
+          "[CAMERA] startBrowserCamera() finished."
+        );
+
+        console.log(
+          "========================================"
+        );
       }
     }, [
       camera,
@@ -407,6 +742,10 @@ export default function LiveCropCamera({
    */
   const startIpCamera =
     useCallback(async () => {
+      console.log(
+        "[CAMERA] startIpCamera()"
+      );
+
       if (
         !camera ||
         camera.type !== "ip" ||
@@ -424,14 +763,11 @@ export default function LiveCropCamera({
           "Connecting to IP camera..."
         );
 
-        /*
-         * Do not use HEAD here.
-         *
-         * Some MJPEG camera streams do not
-         * support HEAD requests.
-         */
         setRunning(true);
-        setStatus("IP camera running");
+
+        setStatus(
+          "IP camera running"
+        );
 
         setTimeout(() => {
           analyzeIpFrame();
@@ -443,7 +779,7 @@ export default function LiveCropCamera({
           }, 3000);
       } catch (err) {
         console.error(
-          "Could not start IP camera:",
+          "[CAMERA] Could not start IP camera:",
           err
         );
 
@@ -467,14 +803,23 @@ export default function LiveCropCamera({
     ]);
 
   /*
-   * Start whichever camera was selected
-   * on the Camera page.
+   * Start whichever camera was selected.
    */
   const startCamera = useCallback(() => {
+    console.log(
+      "[CAMERA] startCamera()"
+    );
+
+    console.log(
+      "[CAMERA] Selected camera:",
+      camera
+    );
+
     if (!camera) {
       setError(
         "No camera is selected. Go to the Camera page and select an input."
       );
+
       return;
     }
 
@@ -482,6 +827,7 @@ export default function LiveCropCamera({
 
     if (camera.type === "browser") {
       startBrowserCamera();
+
       return;
     }
 
@@ -495,16 +841,24 @@ export default function LiveCropCamera({
   ]);
 
   /*
-   * If the selected camera changes while
-   * this component is mounted, stop the
-   * previous input.
+   * If the selected camera changes,
+   * stop the previous input.
    */
   useEffect(() => {
+    console.log(
+      "[CAMERA] Camera selection changed:",
+      camera
+    );
+
     stopCamera();
+
     setError(null);
 
     if (!camera) {
-      setStatus("No camera selected");
+      setStatus(
+        "No camera selected"
+      );
+
       return;
     }
 
@@ -521,6 +875,10 @@ export default function LiveCropCamera({
    */
   useEffect(() => {
     return () => {
+      console.log(
+        "[CAMERA] Component unmounting. Cleaning up..."
+      );
+
       stopCamera();
     };
   }, [stopCamera]);
@@ -548,7 +906,6 @@ export default function LiveCropCamera({
 
   return (
     <div className="space-y-4">
-
       {/* Camera information */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -588,7 +945,6 @@ export default function LiveCropCamera({
 
       {/* Camera feed */}
       <div className="relative aspect-video overflow-hidden rounded-xl border border-white/10 bg-black">
-
         {camera.type === "browser" ? (
           <video
             ref={videoRef}

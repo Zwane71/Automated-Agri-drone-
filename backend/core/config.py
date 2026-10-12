@@ -1,17 +1,23 @@
 import os
 
+from dotenv import load_dotenv
 from huggingface_hub import hf_hub_download
 from ultralytics import YOLO
 
 
+load_dotenv()
+
 os.environ["YOLO_CONFIG_DIR"] = "/tmp"
 
-
-MODEL_REPO = "MakZwane/automated-agri-drone-models"
 
 FRONTEND_URL = os.getenv(
     "FRONTEND_URL",
     "http://localhost:3000",
+)
+
+MODEL_REPO = os.getenv(
+    "MODEL_REPO",
+    "MakZwane/automated-agri-drone-models",
 )
 
 

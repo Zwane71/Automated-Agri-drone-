@@ -8,7 +8,7 @@ export default function Home() {
        <div>
         <h1>
           WELCOME TO ADRIDRONE
-          <Link href="/(dashboard)/home" className="text-blue-500">
+          <Link href="/home" className="text-blue-500">
             {" "}
             welcome
           </Link>
