@@ -14,6 +14,7 @@ from routers import (
     census,
     camera,
     camera_analysis,
+    auth
 )
 
 
@@ -33,19 +34,21 @@ app.state.crops_model = crops_model
 app.state.disease_model = disease_model
 
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        FRONTEND_URL,
+        FRONTEND_URL.rstrip("/"),
         "https://gz0n8723-3000.inc1.devtunnels.ms",
         "http://localhost:3000",
+        "http://127.0.0.1:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
+app.include_router(auth.router)
 app.include_router(health.router)
 app.include_router(crops.router)
 app.include_router(disease.router)

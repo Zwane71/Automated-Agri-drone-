@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
+
 import {
   Activity,
   FileText,
   LayoutDashboard,
+  LogOut,
   Map,
   Plane,
   ScanLine,
@@ -57,6 +60,15 @@ export default function Sidebar({
   setMobileMenu,
 }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+
+
+function handleLogout() {
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("auth_user");
+  setMobileMenu(false);
+  router.replace("/login");
+}
 
   return (
     <>
@@ -81,7 +93,7 @@ export default function Sidebar({
           {/* Logo */}
           <div className="flex h-20 items-center justify-between border-b border-white/10 px-6">
             <Link
-              href="/dashboard"
+              href="/home"
               className="flex items-center gap-3"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
@@ -149,6 +161,17 @@ export default function Sidebar({
               <p className="mt-2 text-xs text-white/25">
                 AgriDrone AI Engine
               </p>
+              
+            <div className="border-t border-white/10 p-4">
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
+              >
+                <LogOut className="h-5 w-5" />
+                Logout
+              </button>
+            </div>
+
             </div>
           </div>
         </div>

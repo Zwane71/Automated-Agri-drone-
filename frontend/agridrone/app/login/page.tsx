@@ -1,0 +1,137 @@
+
+"use client";
+
+import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Sprout, ArrowRight, LoaderCircle } from "lucide-react";
+import { loginUser } from "@/lib/auth";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const result = await loginUser({ username, password });
+
+      localStorage.setItem("access_token", result.access_token);
+      localStorage.setItem("auth_user", JSON.stringify(result.user));
+
+      router.replace("/home");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to sign in."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#FAFBF7] px-5 py-12 text-stone-900">
+      <section className="w-full max-w-md">
+        <Link href="/" className="mb-9 flex items-center justify-center gap-3">
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-900 text-lime-300">
+            <Sprout size={27} />
+          </span>
+          <span className="text-2xl font-bold tracking-tight">
+            Agri<span className="text-green-700">Vision</span>
+            <span className="ml-1 text-sm font-medium text-stone-500">AI</span>
+          </span>
+        </Link>
+
+        <div className="rounded-2xl border border-stone-200 bg-white p-7 shadow-xl shadow-green-950/5 sm:p-9">
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-green-800">
+            Welcome back
+          </p>
+
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Sign in to your account
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-stone-600">
+            Access your agricultural monitoring workspace and AI tools.
+          </p>
+
+          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+            <div>
+              <label htmlFor="username" className="mb-2 block text-sm font-medium">
+                Username
+              </label>
+              <input
+                id="username"
+                name="username"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                required
+                minLength={3}
+                className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-700/15"
+                placeholder="Enter your username"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="mb-2 block text-sm font-medium">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 outline-none transition focus:border-green-700 focus:ring-2 focus:ring-green-700/15"
+                placeholder="Enter your password"
+              />
+            </div>
+
+            {error && (
+              <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-900 px-5 py-3.5 font-semibold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? (
+                <>
+                  <LoaderCircle size={18} className="animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  Sign in <ArrowRight size={18} />
+                </>
+              )}
+            </button>
+          </form>
+
+          <p className="mt-7 text-center text-sm text-stone-600">
+            New to AgriVision AI?{" "}
+            <Link href="/register" className="font-semibold text-green-800 hover:underline">
+              Create an account
+            </Link>
+          </p>
+        </div>
+
+        <p className="mt-6 text-center text-xs text-stone-500">
+          AI-assisted crop monitoring and agricultural research.
+        </p>
+      </section>
+    </main>
+  );
+}
