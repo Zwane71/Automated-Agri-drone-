@@ -1,6 +1,8 @@
 
 from sqlalchemy import select, desc
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form,HTTPException, Request, UploadFile
+from core.farm_models import Farm
+from core.field_models import Field
 from sqlalchemy.orm import Session
 
 from pathlib import Path
@@ -22,10 +24,12 @@ router = APIRouter(
 
 
 
+
 @router.post("/full")
 async def full_analysis(
     request: Request,
     file: UploadFile = File(...),
+    field_id: int | None = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -34,64 +38,24 @@ async def full_analysis(
     image_path = None
 
     try:
-        # Read and preserve the original uploaded image.
-        image_bytes = await file.read()
-
-        if not image_bytes:
-            raise HTTPException(
-                status_code=400,
-                detail="The uploaded image is empty.",
+        # Verify the selected field belongs to the logged-in user.
+        if field_id is not None:
+            owned_field = db.scalar(
+                select(Field)
+                .join(Farm, Field.farm_id == Farm.id)
+                .where(
+                    Field.id == field_id,
+                    Farm.owner_id == current_user.id,
+                )
             )
 
-        # Reset the upload so the existing image service can read it.
-        await file.seek(0)
+            if owned_field is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Field not found.",
+                )
 
-        frame = await read_image(file)
-
-        # Keep the existing AI analysis pipeline unchanged.
-        result = analyze_full_image(
-            frame,
-            request.app.state.crops_model,
-            request.app.state.disease_model,
-        )
-
-        # Use a safe extension from an allowed list.
-        original_extension = Path(file.filename or "").suffix.lower()
-        allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
-
-        extension = (
-            original_extension
-            if original_extension in allowed_extensions
-            else ".jpg"
-        )
-
-        # Store images in backend/uploads/analysis.
-        upload_dir = Path(__file__).resolve().parents[1] / "uploads" / "analysis"
-        upload_dir.mkdir(parents=True, exist_ok=True)
-
-        filename = f"{uuid4().hex}{extension}"
-        image_path = upload_dir / filename
-
-        # Save the original bytes, not the processed OpenCV frame.
-        image_path.write_bytes(image_bytes)
-
-        # Store a relative path in the database.
-        relative_image_path = f"uploads/analysis/{filename}"
-
-        record = AnalysisRecord(
-            owner_id=current_user.id,
-            field_id=None,
-            crop_count=result["crop_count"],
-            diseased_crop_count=result["diseased_crop_count"],
-            disease_count=result["disease_count"],
-            results=result,
-            image_path=relative_image_path,
-        )
-
-        db.add(record)
-        db.commit()
-
-        return result
+        # Keep the rest of your existing analysis code below.
 
     except HTTPException:
         db.rollback()

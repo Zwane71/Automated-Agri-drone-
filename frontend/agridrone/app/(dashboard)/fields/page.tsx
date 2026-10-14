@@ -295,7 +295,7 @@ export default function FieldsPage() {
             if (!selectedField) {
         throw new Error("Please select a field before analyzing an image.");
       }
-      const analysis = await analyzeFull(file);
+      const analysis = await analyzeFull(file, selectedField.id);
       setResult(analysis);
     } catch (err) {
       console.error(err);

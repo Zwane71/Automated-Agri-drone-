@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   AlertCircle,
@@ -15,7 +15,16 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import PageHeader from "@/components/dashboard/PageHeader";
 import StatCard from "@/components/dashboard/StatCard";
 
-import { analyzeFull } from "@/lib/api";
+import {
+  analyzeFull,
+  getAnalysisHistory,
+  getFarms
+} from "@/lib/api";
+
+import type {
+  AnalysisHistoryRecord,
+  Farm
+} from "@/lib/api";
 
 import type {
   AnalysisResult,
@@ -26,11 +35,89 @@ export default function ReportsPage() {
   const [result, setResult] = useState<AnalysisResult | null>(
     null
   );
-
+  const [reportDate, setReportDate] = useState<string | null>(null);
+  const [farms, setFarms] = useState<Farm[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [history, setHistory] = useState<
+  AnalysisHistoryRecord[]
+>([]);
 
+const [historyLoading, setHistoryLoading] = useState(true);
+
+const [historyError, setHistoryError] = useState<string | null>(
+  null
+);
+
+const getFieldLabel = (fieldId: number | null) => {
+  if (fieldId === null) {
+    return "No field linked";
+  }
+
+  for (const farm of farms) {
+    const field = farm.fields.find(
+      (item) => item.id === fieldId
+    );
+
+    if (field) {
+      return `${farm.name} / ${field.name}`;
+    }
+  }
+
+  return `Field #${fieldId}`;
+};
+
+const handleOpenSavedReport = (record: AnalysisHistoryRecord) => {
+  setResult(record.results);
+  setFileName(`Saved analysis #${record.id}`);
+  setReportDate(record.created_at);
+  setError(null);
+};
+
+
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadHistory() {
+    setHistoryLoading(true);
+    setHistoryError(null);
+
+    try {
+      const records = await getAnalysisHistory();
+
+      if (!cancelled) {
+        setHistory(records);
+      }
+    } catch (err) {
+      if (!cancelled) {
+        setHistoryError(
+          err instanceof Error
+            ? err.message
+            : "Could not load saved reports."
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setHistoryLoading(false);
+      }
+    }
+  }
+
+  void loadHistory();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
+useEffect(() => {
+  getFarms()
+    .then(setFarms)
+    .catch((err) => {
+      console.error("Failed to load farms:", err);
+    });
+}, []);
   const diseaseSummary = useMemo(() => {
     if (!result) return {};
 
@@ -121,6 +208,92 @@ export default function ReportsPage() {
           title="Reports"
           description="Review detailed crop and disease analysis reports."
         />
+
+        
+        {/* Saved report history */}
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-medium">Saved Reports</h2>
+              <p className="mt-1 text-sm text-white/40">
+                Reopen previous AI analyses.
+              </p>
+            </div>
+
+            <span className="text-sm text-white/40">
+              {history.length} saved {history.length === 1 ? "report" : "reports"}
+            </span>
+          </div>
+
+          {historyLoading ? (
+            <div className="mt-5 flex items-center gap-2 text-sm text-white/50">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading saved reports...
+            </div>
+          ) : historyError ? (
+            <div className="mt-5 rounded-xl border border-red-400/20 bg-red-400/10 p-4">
+              <p className="text-sm text-red-300">{historyError}</p>
+            </div>
+          ) : history.length === 0 ? (
+            <div className="mt-5 rounded-xl border border-dashed border-white/10 p-6 text-center">
+              <FileImage className="mx-auto h-8 w-8 text-white/20" />
+              <p className="mt-3 text-sm text-white/50">
+                No saved reports yet.
+              </p>
+              <p className="mt-1 text-xs text-white/30">
+                Generate an analysis to create your first saved report.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-5 space-y-3">
+              {history.map((record) => (
+                <div
+                  key={record.id}
+                  className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {getFieldLabel(record.field_id)}
+                    </p>
+
+                    <p className="mt-1 text-xs text-white/40">
+                      {new Date(reportDate ?? Date.now()).toLocaleString()}
+                    </p>
+
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-lg bg-white/[0.06] px-3 py-1.5">
+                        {record.crop_count} crops
+                      </span>
+
+                      <span className="rounded-lg bg-white/[0.06] px-3 py-1.5">
+                        {record.diseased_crop_count} diseased
+                      </span>
+
+                      <span className="rounded-lg bg-white/[0.06] px-3 py-1.5">
+                        {record.disease_count} disease findings
+                      </span>
+
+                      <span className="rounded-lg bg-white/[0.06] px-3 py-1.5">
+                        {record.field_id != null
+                          ? `Field #${record.field_id}`
+                          : "No field linked"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenSavedReport(record)}
+                    className="shrink-0 rounded-xl border border-white/10 px-4 py-2.5 text-sm transition hover:bg-white/[0.06]"
+                  >
+                    View Report
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
 
         {/* Report generator */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">

@@ -14,9 +14,11 @@ console.log("AI API URL:", API_URL);
 
 console.log("AI API URL:", API_URL);
 
+
 async function postImage<T>(
   path: string,
-  file: Blob
+  file: Blob,
+  extraFields?: Record<string, string>
 ): Promise<T> {
   const formData = new FormData();
 
@@ -25,6 +27,12 @@ async function postImage<T>(
     file,
     file instanceof File ? file.name : "drone-image.jpg"
   );
+
+  if (extraFields) {
+    Object.entries(extraFields).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
+  }
 
   const token =
     typeof window !== "undefined"
@@ -57,6 +65,7 @@ async function postImage<T>(
 
   return response.json();
 }
+
 
 /* =========================
    CROP DETECTION
@@ -112,20 +121,26 @@ export async function segmentDisease(
    FULL ANALYSIS
 ========================= */
 
+
 export async function analyzeFull(
-  file: Blob
+  file: Blob,
+  fieldId?: number | null
 ): Promise<AnalysisResult> {
   console.log("[ANALYZE] analyzeFull called");
 
   const result = await postImage<AnalysisResult>(
     "/api/v1/analysis/full",
-    file
+    file,
+    fieldId != null
+      ? { field_id: String(fieldId) }
+      : undefined
   );
 
   console.log("[ANALYZE] Analysis successful:", result);
 
   return result;
 }
+
 
 /* Keep this name because the dashboard uses analyzeImage(). */
 export async function analyzeImage(
