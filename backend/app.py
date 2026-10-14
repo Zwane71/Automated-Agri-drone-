@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from core import user_models, farm_models, field_models, analysis_models  # noqa: F401
 
 from core.config import (
     FRONTEND_URL,
@@ -14,7 +15,9 @@ from routers import (
     census,
     camera,
     camera_analysis,
-    auth
+    auth,
+    farms,
+    fields,
 )
 
 
@@ -35,6 +38,7 @@ app.state.disease_model = disease_model
 
 
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -48,6 +52,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 app.include_router(auth.router)
 app.include_router(health.router)
 app.include_router(crops.router)
@@ -56,3 +61,5 @@ app.include_router(analysis.router)
 app.include_router(census.router)
 app.include_router(camera.router)
 app.include_router(camera_analysis.router)
+app.include_router(farms.router)
+app.include_router(fields.router)

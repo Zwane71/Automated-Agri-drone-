@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 
@@ -33,3 +34,9 @@ class User(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+    farms = relationship(
+    "Farm",
+    back_populates="owner",
+    cascade="all, delete-orphan",
+)

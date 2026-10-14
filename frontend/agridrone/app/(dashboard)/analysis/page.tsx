@@ -18,13 +18,17 @@ import PageHeader from "@/components/dashboard/PageHeader";
 import StatCard from "@/components/dashboard/StatCard";
 import LiveCropCamera from "@/components/analysis/LiveCropCamera";
 
-import { analyzeFull } from "@/lib/api";
+
+import { 
+  analyzeFull,
+ } from "@/lib/api";
 
 import type {
   AnalysisResult,
   CropDetection,
   DiseaseDetection,
 } from "@/components/analysis/types";
+import AnalysisHistory from "@/components/AnalysisPage/AnalysisHistory";
 
 interface CameraDevice {
   id: string;
@@ -58,6 +62,9 @@ export default function AnalysisPage() {
 
   const [selectedCamera, setSelectedCamera] =
     useState<CameraDevice | null>(null);
+  
+    const [historyRefreshKey, setHistoryRefreshKey] =
+  useState(0);
 
   /*
    * Load the camera selected on the Camera page.
@@ -199,13 +206,16 @@ export default function AnalysisPage() {
     }
 
     setAnalyzing(true);
+    setAnalysis(null);
     setError(null);
 
     try {
-      const result =
-        await analyzeFull(file);
+      const result = await analyzeFull(file);
 
       setAnalysis(result);
+
+      // Tell the history component to reload saved analyses.
+      setHistoryRefreshKey((current) => current + 1);
     } catch (err) {
       console.error(err);
 
@@ -646,6 +656,8 @@ export default function AnalysisPage() {
             </div>
           </div>
         )}
+        {/* Saved Analysis History */}
+        <AnalysisHistory refreshKey={historyRefreshKey} />
       </div>
     </DashboardShell>
   );
