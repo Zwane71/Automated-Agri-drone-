@@ -348,6 +348,38 @@ export async function getAnalysisHistory(): Promise<
   return response.json();
 }
 
+
+export async function getAnalysisHistoryImage(
+  recordId: number
+): Promise<Blob> {
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("access_token")
+      : null;
+
+  if (!token) {
+    throw new Error("Please log in to view this image.");
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/v1/analysis/history/${recordId}/image`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "ngrok-skip-browser-warning": "true",
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Could not load the saved analysis image.");
+  }
+
+  return response.blob();
+}
+
 /* =========================
    FARM AND FIELD MANAGEMENT
 ========================= */

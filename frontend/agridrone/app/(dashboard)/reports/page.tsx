@@ -11,6 +11,7 @@ import {
   Sprout,
 } from "lucide-react";
 
+import AnnotatedImage from "@/components/analysis/AnnotatedImage";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import PageHeader from "@/components/dashboard/PageHeader";
 import StatCard from "@/components/dashboard/StatCard";
@@ -18,6 +19,7 @@ import StatCard from "@/components/dashboard/StatCard";
 import {
   analyzeFull,
   getAnalysisHistory,
+  getAnalysisHistoryImage,
   getFarms
 } from "@/lib/api";
 
@@ -50,6 +52,10 @@ const [historyError, setHistoryError] = useState<string | null>(
   null
 );
 
+const [savedImageUrl, setSavedImageUrl] = useState<string | null>(null);
+const [imageLoading, setImageLoading] = useState(false);
+const [imageError, setImageError] = useState<string | null>(null);
+
 const getFieldLabel = (fieldId: number | null) => {
   if (fieldId === null) {
     return "No field linked";
@@ -68,12 +74,39 @@ const getFieldLabel = (fieldId: number | null) => {
   return `Field #${fieldId}`;
 };
 
-const handleOpenSavedReport = (record: AnalysisHistoryRecord) => {
+
+const handleOpenSavedReport = async (
+  record: AnalysisHistoryRecord
+) => {
   setResult(record.results);
   setFileName(`Saved analysis #${record.id}`);
   setReportDate(record.created_at);
   setError(null);
+
+  setImageLoading(true);
+  setImageError(null);
+
+  if (savedImageUrl) {
+    URL.revokeObjectURL(savedImageUrl);
+    setSavedImageUrl(null);
+  }
+
+  try {
+    const imageBlob = await getAnalysisHistoryImage(record.id);
+    const imageUrl = URL.createObjectURL(imageBlob);
+
+    setSavedImageUrl(imageUrl);
+  } catch (err) {
+    setImageError(
+      err instanceof Error
+        ? err.message
+        : "Could not load the saved analysis image."
+    );
+  } finally {
+    setImageLoading(false);
+  }
 };
+
 
 
 
@@ -182,7 +215,14 @@ useEffect(() => {
     try {
       const analysis = await analyzeFull(file);
 
+      if (savedImageUrl) {
+        URL.revokeObjectURL(savedImageUrl);
+      }
+
       setResult(analysis);
+      setReportDate(new Date().toISOString());
+      setImageError(null);
+      setSavedImageUrl(URL.createObjectURL(file));
     } catch (err) {
       console.error(err);
 
@@ -257,7 +297,7 @@ useEffect(() => {
                     </p>
 
                     <p className="mt-1 text-xs text-white/40">
-                      {new Date(reportDate ?? Date.now()).toLocaleString()}
+                      {new Date(record.created_at).toLocaleString()}
                     </p>
 
                     <div className="mt-3 flex flex-wrap gap-2 text-xs">
@@ -404,7 +444,7 @@ useEffect(() => {
                   </p>
 
                   <p className="mt-1 text-sm text-white/60">
-                    {new Date().toLocaleString()}
+                   {new Date(reportDate ?? Date.now()).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -446,6 +486,42 @@ useEffect(() => {
                 icon={<Sprout className="h-5 w-5" />}
               />
             </div>
+
+            
+              {/* AI-highlighted image */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                <h2 className="text-lg font-medium">
+                  AI Detection Image
+                </h2>
+
+                <p className="mt-1 text-sm text-white/40">
+                  Green boxes show detected crops. Red boxes show
+                  detected disease regions.
+                </p>
+
+                {imageLoading ? (
+                  <div className="mt-5 flex items-center gap-2 text-sm text-white/50">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading analysis image...
+                  </div>
+                ) : imageError ? (
+                  <p className="mt-5 text-sm text-red-300">
+                    {imageError}
+                  </p>
+                ) : savedImageUrl ? (
+                  <div className="mt-5">
+                    <AnnotatedImage
+                      imageUrl={savedImageUrl}
+                      result={result}
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-5 text-sm text-white/40">
+                    No image available for this report.
+                  </p>
+                )}
+              </div>
+
 
             {/* Image information */}
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
