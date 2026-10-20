@@ -24,7 +24,7 @@ const features = [
     icon: Scan,
     title: "Cabbage Detection",
     description:
-      "Identify cabbage plants in crop images using your trained AI detection model.",
+      "Identify  plants in crop images using your trained AI detection model.",
     tag: "Computer vision",
   },
   {
@@ -62,7 +62,7 @@ const steps = [
   {
     number: "02",
     title: "Detect",
-    description: "Use computer vision to identify cabbage plants.",
+    description: "Use computer vision to identify  plants.",
   },
   {
     number: "03",
@@ -169,13 +169,13 @@ export default function HomePage() {
 
           <div className="hidden items-center gap-3 md:flex">
             <Link
-              href="/census"
+              href="/login"
               className="px-4 py-2.5 text-sm font-semibold text-green-900 hover:text-green-700"
             >
               Open dashboard
             </Link>
             <Link
-              href="/census"
+              href="/login"
               className="inline-flex items-center gap-2 rounded-xl bg-green-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-green-800"
             >
               Explore platform <ArrowRight size={16} />
@@ -206,7 +206,7 @@ export default function HomePage() {
                 About
               </a>
               <Link
-                href="/census"
+                href="/login"
                 onClick={closeMenu}
                 className="flex items-center justify-center gap-2 rounded-xl bg-green-900 px-5 py-3 text-sm font-semibold text-white"
               >
@@ -235,13 +235,13 @@ export default function HomePage() {
 
             <p className="mt-7 max-w-xl text-base leading-8 text-stone-600 sm:text-lg">
               Bringing artificial intelligence and aerial monitoring together
-              to help you identify cabbage crops, analyze potential diseases,
+              to help you identify crops, analyze potential diseases,
               and build a clearer picture of field conditions.
             </p>
 
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/census"
+                href="/login"
                 className="inline-flex min-h-14 items-center justify-center gap-3 rounded-xl bg-green-900 px-7 py-4 text-sm font-semibold text-white shadow-lg shadow-green-950/10 transition hover:-translate-y-0.5 hover:bg-green-800"
               >
                 Open AI dashboard <ArrowRight size={18} />
@@ -411,7 +411,7 @@ export default function HomePage() {
               </p>
 
               <Link
-                href="/census"
+                href="/login"
                 className="mt-8 inline-flex items-center gap-3 rounded-xl bg-lime-300 px-6 py-4 text-sm font-bold text-green-950 transition hover:bg-lime-200"
               >
                 Enter the platform <ArrowRight size={17} />
@@ -464,7 +464,7 @@ export default function HomePage() {
             </div>
 
             <Link
-              href="/census"
+              href="/login"
               className="inline-flex min-h-14 items-center justify-center gap-3 rounded-xl bg-green-950 px-7 py-4 text-sm font-semibold text-white transition hover:bg-green-800"
             >
               Open the application <ArrowRight size={18} />
@@ -490,7 +490,7 @@ export default function HomePage() {
           </p>
 
           <Link
-            href="/census"
+            href="/login"
             className="inline-flex items-center gap-2 text-sm font-semibold text-green-900 hover:text-green-700"
           >
             Launch platform <ArrowRight size={16} />
