@@ -119,7 +119,10 @@ async def full_analysis(
         db.commit()
         db.refresh(record)
 
-        return result
+        return {
+            **result,
+            "analysis_record_id": record.id,
+            }
 
     except HTTPException:
         db.rollback()

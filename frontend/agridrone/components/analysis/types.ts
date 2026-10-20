@@ -22,4 +22,5 @@ export interface AnalysisResult {
   diseased_crop_count: number;
   disease_count: number;
   crops: CropDetection[];
+  analysis_record_id?: number;
 }

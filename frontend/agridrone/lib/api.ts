@@ -536,3 +536,115 @@ export function deleteField(fieldId: number): Promise<void> {
     "DELETE"
   );
 }
+
+
+export interface Mission {
+  id: number;
+  owner_id: number;
+  field_id: number;
+  title: string;
+  notes: string | null;
+  starts_at: string;
+  ends_at: string | null;
+  recurrence_type: string;
+  interval_value: number;
+  interval_unit: string | null;
+  timezone_name: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MissionOccurrence {
+  id: number;
+  mission_id: number;
+  occurrence_key: string;
+  scheduled_at: string;
+  status: string;
+  completed_at: string | null;
+  analysis_record_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MissionCreateInput {
+  field_id: number;
+  title: string;
+  notes?: string | null;
+  starts_at: string;
+  ends_at?: string | null;
+  recurrence_type:
+    | "once"
+    | "daily"
+    | "weekly"
+    | "fortnightly"
+    | "monthly"
+    | "custom";
+  interval_value?: number;
+  interval_unit?: "day" | "week" | "month" | null;
+  timezone_name?: string;
+}
+
+export interface MissionOccurrenceUpdate {
+  scheduled_at?: string;
+  status?: "pending" | "skipped";
+}
+
+export async function getMissions(
+  includeCancelled = false,
+): Promise<Mission[]> {
+  const query = includeCancelled ? "?include_cancelled=true" : "";
+  return managementRequest<Mission[]>(`/api/v1/missions${query}`);
+}
+
+export async function createMission(
+  data: MissionCreateInput,
+): Promise<Mission> {
+  return managementRequest<Mission>("/api/v1/missions", "POST", data);
+}
+
+export async function cancelMission(
+  missionId: number,
+): Promise<Mission> {
+  return managementRequest<Mission>(
+    `/api/v1/missions/${missionId}/cancel`,
+    "PATCH",
+  );
+}
+
+export async function getMissionOccurrences(
+  windowDays = 90,
+  includeCompleted = false,
+): Promise<MissionOccurrence[]> {
+  const params = new URLSearchParams({
+    window_days: String(windowDays),
+    include_completed: String(includeCompleted),
+  });
+
+  return managementRequest<MissionOccurrence[]>(
+    `/api/v1/missions/occurrences?${params.toString()}`,
+  );
+}
+
+export async function updateMissionOccurrence(
+  occurrenceId: number,
+  data: MissionOccurrenceUpdate,
+): Promise<MissionOccurrence> {
+  return managementRequest<MissionOccurrence>(
+    `/api/v1/missions/occurrences/${occurrenceId}`,
+    "PATCH",
+    data,
+  );
+}
+
+export async function completeMissionOccurrence(
+  occurrenceId: number,
+  analysisRecordId: number,
+): Promise<MissionOccurrence> {
+  return managementRequest<MissionOccurrence>(
+    `/api/v1/missions/occurrences/${occurrenceId}/complete`,
+    "POST",
+    { analysis_record_id: analysisRecordId },
+  );
+}
+

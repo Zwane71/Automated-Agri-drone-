@@ -21,8 +21,9 @@ import LiveCropCamera from "@/components/analysis/LiveCropCamera";
 
 import { 
   analyzeFull,
-  Farm,
-  getFarms
+  completeMissionOccurrence,
+  getFarms,
+  type Farm,
  } from "@/lib/api";
 
 import type {
@@ -73,7 +74,37 @@ export default function AnalysisPage() {
     useState<number | "">("");
   const [farmsLoading, setFarmsLoading] = useState(true);
   const [farmsError, setFarmsError] = useState<string | null>(null);
+
+  const [occurrenceId, setOccurrenceId] = useState<number | null>(null);
+const [missionMessage, setMissionMessage] = useState<string | null>(null);
     
+
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+
+  const fieldParam = params.get("fieldId");
+  const occurrenceParam = params.get("occurrenceId");
+
+  if (fieldParam) {
+    const parsedFieldId = Number(fieldParam);
+
+    if (Number.isInteger(parsedFieldId) && parsedFieldId > 0) {
+      setSelectedFieldId(parsedFieldId);
+    }
+  }
+
+  if (occurrenceParam) {
+    const parsedOccurrenceId = Number(occurrenceParam);
+
+    if (
+      Number.isInteger(parsedOccurrenceId) &&
+      parsedOccurrenceId > 0
+    ) {
+      setOccurrenceId(parsedOccurrenceId);
+      setMissionMessage(null);
+    }
+  }
+}, []);
 
   useEffect(() => {
   let cancelled = false;
@@ -238,50 +269,80 @@ export default function AnalysisPage() {
   /*
    * Upload image for detailed analysis.
    */
-  const handleImageUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file =
-      event.target.files?.[0];
+ const handleImageUpload = async (
+  event: React.ChangeEvent<HTMLInputElement>
+) => {
+  const file = event.target.files?.[0];
 
-    if (!file) {
-      return;
+  if (!file) return;
+
+  if (selectedFieldId === "") {
+    setError("Please select a field before analyzing an image.");
+    event.target.value = "";
+    return;
+  }
+
+  setAnalyzing(true);
+  setAnalysis(null);
+  setError(null);
+  setMissionMessage(null);
+
+  try {
+    // Run the existing AI pipeline and save the analysis.
+    const result = await analyzeFull(file, selectedFieldId);
+
+    setAnalysis(result);
+
+    // Refresh saved analysis history.
+    setHistoryRefreshKey((current) => current + 1);
+
+    // Link the saved analysis to the mission occurrence, if applicable.
+    if (occurrenceId !== null) {
+      if (result.analysis_record_id == null) {
+        setMissionMessage(
+          "Analysis was saved, but the backend did not return its record ID. " +
+            "The mission has not been marked as completed."
+        );
+      } else {
+        try {
+          await completeMissionOccurrence(
+            occurrenceId,
+            result.analysis_record_id
+          );
+
+          setMissionMessage(
+            "Analysis saved successfully. Mission occurrence completed."
+          );
+        } catch (completionError) {
+          console.error(
+            "Analysis saved, but mission completion failed:",
+            completionError
+          );
+
+          setMissionMessage(
+            "Analysis was saved, but the mission could not be marked as completed. " +
+              (completionError instanceof Error
+                ? completionError.message
+                : "Please try again.")
+          );
+        }
+      }
     }
+  } catch (err) {
+    console.error(err);
 
-    setAnalyzing(true);
-    setAnalysis(null);
-    setError(null);
-    
-    if (selectedFieldId === "") {
-  setError("Please select a field before analyzing an image.");
-  return;
-}
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Failed to analyze image."
+    );
+  } finally {
+    setAnalyzing(false);
 
-    try {
-      const result = await analyzeFull(file, selectedFieldId);
-
-      setAnalysis(result);
-
-      // Tell the history component to reload saved analyses.
-      setHistoryRefreshKey((current) => current + 1);
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to analyze image."
-      );
-    } finally {
-      setAnalyzing(false);
-
-      /*
-       * Allow selecting the same image again.
-       */
-      event.target.value = "";
-    }
-  };
-
+    // Allow the same image to be selected again.
+    event.target.value = "";
+  }
+};
   return (
     <DashboardShell>
       <div className="space-y-6 p-5 md:p-8">
@@ -581,6 +642,14 @@ export default function AnalysisPage() {
             <div className="mt-4 flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-300">
               <CircleAlert className="h-4 w-4 shrink-0" />
               {error}
+            </div>
+          )}
+          {missionMessage && (
+            <div
+              role="status"
+              className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-300"
+            >
+              {missionMessage}
             </div>
           )}
         </div>
