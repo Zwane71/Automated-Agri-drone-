@@ -338,7 +338,7 @@ export default function HomePage() {
             <div>
               <p className="font-semibold">Detect</p>
               <p className="mt-1 text-sm text-stone-500">
-                Identify cabbage crops
+                Identify crops
               </p>
             </div>
           </div>
@@ -406,7 +406,7 @@ export default function HomePage() {
               </h2>
               <p className="mt-6 max-w-lg text-sm leading-7 text-green-100/75 sm:text-base">
                 The platform combines image capture with trained AI models to
-                help you inspect cabbage crops and review the results. Each
+                help you inspect crops and review the results. Each
                 stage contributes to a clearer view of crop conditions.
               </p>
 
