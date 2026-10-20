@@ -7,7 +7,7 @@ from sqlalchemy import engine_from_config, pool
 from dotenv import load_dotenv
 
 from core.database import Base
-from core import user_models, farm_models, field_models, analysis_models  # noqa: F401
+from core import user_models, farm_models, field_models, analysis_models, mission_models  # noqa: F401
 
 load_dotenv()
 
