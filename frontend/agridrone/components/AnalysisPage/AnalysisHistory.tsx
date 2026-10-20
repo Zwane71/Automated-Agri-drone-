@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, History, Printer } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, History, Printer, ArrowRight } from "lucide-react";
 
 import {
   getAnalysisHistory,
+  getFarms,
+  type Farm,
   type AnalysisHistoryRecord,
 } from "@/lib/api";
 
@@ -71,23 +74,48 @@ export default function AnalysisHistory({
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
+  const [fieldNames, setFieldNames] = useState<Record<number, string>>({});
+
   const loadHistory = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
+
+  try {
+    const data = await getAnalysisHistory();
+
+    const sortedRecords = [...data].sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() -
+        new Date(a.created_at).getTime()
+    );
+
+    setRecords(sortedRecords);
 
     try {
-      const data = await getAnalysisHistory();
-      setRecords(data);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Could not load analysis history."
-      );
-    } finally {
-      setLoading(false);
+      const farms: Farm[] = await getFarms();
+      const names: Record<number, string> = {};
+
+      farms.forEach((farm) => {
+        farm.fields?.forEach((field) => {
+          names[field.id] = `${farm.name} / ${field.name}`;
+        });
+      });
+
+      setFieldNames(names);
+    } catch {
+      // Keep analysis history available if farm names cannot load.
+      setFieldNames({});
     }
-  }, []);
+  } catch (err) {
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Could not load analysis history."
+    );
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   useEffect(() => {
     void loadHistory();
@@ -471,7 +499,7 @@ export default function AnalysisHistory({
         </p>
       ) : (
         <div className="space-y-3">
-          {records.map((record) => {
+          {records.slice(0, 5).map((record) => {
             const expanded = expandedId === record.id;
             const crops = record.results?.crops ?? [];
 
@@ -490,6 +518,11 @@ export default function AnalysisHistory({
                 >
                   <div>
                     <p className="text-sm font-medium">
+                      {record.field_id != null
+                        ? fieldNames[record.field_id] ?? `Field #${record.field_id}`
+                        : "Unassigned field"}
+                    </p>
+                    <p className="mt-1 text-xs text-white/50">
                       Analysis #{record.id}
                     </p>
                     <p className="mt-1 text-xs text-white/40">
@@ -583,6 +616,15 @@ export default function AnalysisHistory({
               </div>
             );
           })}
+          <div className="mt-5 flex justify-end">
+            <Link
+              href="/reports"
+              className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/30 px-4 py-2 text-sm font-medium text-emerald-400 transition hover:bg-emerald-500/10"
+            >
+              Show more
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       )}
     </section>

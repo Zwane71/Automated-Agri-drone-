@@ -21,6 +21,8 @@ import LiveCropCamera from "@/components/analysis/LiveCropCamera";
 
 import { 
   analyzeFull,
+  Farm,
+  getFarms
  } from "@/lib/api";
 
 import type {
@@ -66,6 +68,47 @@ export default function AnalysisPage() {
     const [historyRefreshKey, setHistoryRefreshKey] =
   useState(0);
 
+  const [farms, setFarms] = useState<Farm[]>([]);
+  const [selectedFieldId, setSelectedFieldId] =
+    useState<number | "">("");
+  const [farmsLoading, setFarmsLoading] = useState(true);
+  const [farmsError, setFarmsError] = useState<string | null>(null);
+    
+
+  useEffect(() => {
+  let cancelled = false;
+
+  async function loadFarms() {
+    setFarmsLoading(true);
+    setFarmsError(null);
+
+    try {
+      const data = await getFarms();
+
+      if (!cancelled) {
+        setFarms(data);
+      }
+    } catch (err) {
+      if (!cancelled) {
+        setFarmsError(
+          err instanceof Error
+            ? err.message
+            : "Could not load your farms and fields."
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setFarmsLoading(false);
+      }
+    }
+  }
+
+  void loadFarms();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
   /*
    * Load the camera selected on the Camera page.
    */
@@ -208,9 +251,14 @@ export default function AnalysisPage() {
     setAnalyzing(true);
     setAnalysis(null);
     setError(null);
+    
+    if (selectedFieldId === "") {
+  setError("Please select a field before analyzing an image.");
+  return;
+}
 
     try {
-      const result = await analyzeFull(file);
+      const result = await analyzeFull(file, selectedFieldId);
 
       setAnalysis(result);
 
@@ -446,6 +494,57 @@ export default function AnalysisPage() {
             </div>
           )}
         </div>
+
+        
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <h2 className="text-lg font-medium">Select Field</h2>
+
+            <p className="mt-1 text-sm text-white/40">
+              Choose the farm field where this image was captured.
+            </p>
+
+            {farmsLoading ? (
+              <p className="mt-4 text-sm text-white/50">
+                Loading farms and fields...
+              </p>
+            ) : farmsError ? (
+              <p className="mt-4 text-sm text-red-300">
+                {farmsError}
+              </p>
+            ) : (
+              <select
+                value={selectedFieldId}
+                onChange={(event) => {
+                  setSelectedFieldId(
+                    event.target.value === ""
+                      ? ""
+                      : Number(event.target.value)
+                  );
+                }}
+                className="mt-4 w-full rounded-xl border border-white/10 bg-[#111] p-3 text-sm"
+              >
+                <option value="">Choose a field</option>
+
+                {farms.map((farm) => (
+                  <optgroup key={farm.id} label={farm.name}>
+                    {farm.fields.map((field) => (
+                      <option key={field.id} value={field.id}>
+                        {field.name}
+                        {field.crop_type ? ` — ${field.crop_type}` : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            )}
+
+            {!farmsLoading && !farmsError && farms.length === 0 && (
+              <p className="mt-3 text-sm text-amber-300">
+                No farms found. Create a farm and field on the Fields page first.
+              </p>
+            )}
+          </div>
+
 
         {/* Upload analysis */}
 

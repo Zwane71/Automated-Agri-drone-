@@ -1,8 +1,14 @@
 
 from sqlalchemy import select, desc
-from fastapi import APIRouter, Depends, File, Form,HTTPException, Request, UploadFile
-from core.farm_models import Farm
-from core.field_models import Field
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from sqlalchemy.orm import Session
 
 from pathlib import Path
@@ -12,6 +18,8 @@ from uuid import uuid4
 from core.database import get_db
 from core.dependencies import get_current_user
 from core.user_models import User
+from core.farm_models import Farm
+from core.field_models import Field
 from core.analysis_models import AnalysisRecord
 from services.image_service import read_image
 from services.analysis_service import analyze_full_image
@@ -21,8 +29,6 @@ router = APIRouter(
     prefix="/api/v1/analysis",
     tags=["Analysis"],
 )
-
-
 
 
 @router.post("/full")
@@ -55,7 +61,65 @@ async def full_analysis(
                     detail="Field not found.",
                 )
 
-        # Keep the rest of your existing analysis code below.
+        # Read and preserve the original uploaded image.
+        image_bytes = await file.read()
+
+        if not image_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail="The uploaded image is empty.",
+            )
+
+        await file.seek(0)
+        frame = await read_image(file)
+
+        # Keep the existing AI analysis pipeline unchanged.
+        result = analyze_full_image(
+            frame,
+            request.app.state.crops_model,
+            request.app.state.disease_model,
+        )
+
+        # Use a safe extension from an allowed list.
+        original_extension = Path(file.filename or "").suffix.lower()
+        allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
+
+        extension = (
+            original_extension
+            if original_extension in allowed_extensions
+            else ".jpg"
+        )
+
+        # Save images in backend/uploads/analysis.
+        upload_dir = (
+            Path(__file__).resolve().parents[1]
+            / "uploads"
+            / "analysis"
+        )
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        filename = f"{uuid4().hex}{extension}"
+        image_path = upload_dir / filename
+        image_path.write_bytes(image_bytes)
+
+        relative_image_path = f"uploads/analysis/{filename}"
+
+        # Save the selected field with the analysis record.
+        record = AnalysisRecord(
+            owner_id=current_user.id,
+            field_id=field_id,
+            crop_count=result["crop_count"],
+            diseased_crop_count=result["diseased_crop_count"],
+            disease_count=result["disease_count"],
+            results=result,
+            image_path=relative_image_path,
+        )
+
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+
+        return result
 
     except HTTPException:
         db.rollback()

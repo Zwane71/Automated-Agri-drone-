@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   FileImage,
   Loader2,
-  Printer,
   Sprout,
 } from "lucide-react";
 
