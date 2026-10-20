@@ -106,6 +106,7 @@ const handleOpenSavedReport = async (
 
 
 
+
 useEffect(() => {
   let cancelled = false;
 
@@ -134,12 +135,31 @@ useEffect(() => {
     }
   }
 
+  function handleVisibilityChange() {
+    if (document.visibilityState === "visible") {
+      void loadHistory();
+    }
+  }
+
   void loadHistory();
+
+  window.addEventListener("focus", loadHistory);
+  document.addEventListener(
+    "visibilitychange",
+    handleVisibilityChange
+  );
 
   return () => {
     cancelled = true;
+    window.removeEventListener("focus", loadHistory);
+    document.removeEventListener(
+      "visibilitychange",
+      handleVisibilityChange
+    );
   };
 }, []);
+
+
 useEffect(() => {
   getFarms()
     .then(setFarms)
@@ -220,9 +240,39 @@ useEffect(() => {
               </p>
             </div>
 
+            
+          <div className="flex items-center gap-3">
             <span className="text-sm text-white/40">
-              {history.length} saved {history.length === 1 ? "report" : "reports"}
+              {history.length} saved{" "}
+              {history.length === 1 ? "report" : "reports"}
             </span>
+
+            <button
+              type="button"
+              disabled={historyLoading}
+              onClick={async () => {
+                setHistoryLoading(true);
+                setHistoryError(null);
+
+                try {
+                  const records = await getAnalysisHistory();
+                  setHistory(records);
+                } catch (err) {
+                  setHistoryError(
+                    err instanceof Error
+                      ? err.message
+                      : "Could not load saved reports."
+                  );
+                } finally {
+                  setHistoryLoading(false);
+                }
+              }}
+              className="rounded-lg border border-white/10 px-3 py-2 text-sm hover:bg-white/[0.06] disabled:opacity-50"
+            >
+              {historyLoading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
+
           </div>
 
           {historyLoading ? (
