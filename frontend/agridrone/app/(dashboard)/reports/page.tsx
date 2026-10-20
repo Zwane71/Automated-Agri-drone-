@@ -17,10 +17,9 @@ import PageHeader from "@/components/dashboard/PageHeader";
 import StatCard from "@/components/dashboard/StatCard";
 
 import {
-  analyzeFull,
   getAnalysisHistory,
   getAnalysisHistoryImage,
-  getFarms
+  getFarms,
 } from "@/lib/api";
 
 import type {
@@ -39,8 +38,6 @@ export default function ReportsPage() {
   );
   const [reportDate, setReportDate] = useState<string | null>(null);
   const [farms, setFarms] = useState<Farm[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [history, setHistory] = useState<
   AnalysisHistoryRecord[]
@@ -81,7 +78,6 @@ const handleOpenSavedReport = async (
   setResult(record.results);
   setFileName(`Saved analysis #${record.id}`);
   setReportDate(record.created_at);
-  setError(null);
 
   setImageLoading(true);
   setImageError(null);
@@ -200,42 +196,6 @@ useEffect(() => {
     );
   }, [allDiseases]);
 
-  const handleUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0];
-
-    if (!file) return;
-
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setFileName(file.name);
-
-    try {
-      const analysis = await analyzeFull(file);
-
-      if (savedImageUrl) {
-        URL.revokeObjectURL(savedImageUrl);
-      }
-
-      setResult(analysis);
-      setReportDate(new Date().toISOString());
-      setImageError(null);
-      setSavedImageUrl(URL.createObjectURL(file));
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to generate the report."
-      );
-    } finally {
-      setLoading(false);
-      event.target.value = "";
-    }
-  };
 
   const handlePrint = () => {
     window.print();
@@ -330,90 +290,6 @@ useEffect(() => {
                   </button>
                 </div>
               ))}
-            </div>
-          )}
-        </div>
-
-
-        {/* Report generator */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <FileImage className="h-5 w-5 text-white/50" />
-
-                <h2 className="text-lg font-medium">
-                  Generate Report
-                </h2>
-              </div>
-
-              <p className="mt-1 text-sm text-white/40">
-                Upload a field image to generate a detailed
-                AI analysis report.
-              </p>
-
-              {fileName && (
-                <p className="mt-2 text-xs text-white/30">
-                  Report image: {fileName}
-                </p>
-              )}
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              {result && (
-                <button
-                  type="button"
-                  onClick={handlePrint}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium transition hover:bg-white/[0.08]"
-                >
-                  <Printer className="h-4 w-4" />
-                  Print Report
-                </button>
-              )}
-
-              <label
-                className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-medium transition ${
-                  loading
-                    ? "cursor-not-allowed bg-white/10 text-white/40"
-                    : "cursor-pointer bg-emerald-500 text-black hover:bg-emerald-400"
-                }`}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <FileImage className="h-4 w-4" />
-                    Generate Report
-                  </>
-                )}
-
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleUpload}
-                  disabled={loading}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          </div>
-
-          {error && (
-            <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
-
-              <div>
-                <p className="text-sm font-medium text-red-300">
-                  Report generation failed
-                </p>
-
-                <p className="mt-1 text-sm text-red-300/70">
-                  {error}
-                </p>
-              </div>
             </div>
           )}
         </div>
@@ -769,17 +645,17 @@ useEffect(() => {
         )}
 
         {/* Empty state */}
-        {!result && !loading && !error && (
+        {!result &&  (
           <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
             <FileImage className="mx-auto h-10 w-10 text-white/20" />
 
             <h2 className="mt-4 text-lg font-medium">
-              No report generated
+              Select a saved report
             </h2>
 
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-white/40">
-              Upload a field image above to generate your
-              first AI analysis report.
+              Choose a report from Saved Reports above to view its
+              image, crop detections, disease findings, and confidence scores.
             </p>
           </div>
         )}
