@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -22,13 +23,13 @@ export default function DashboardCamera({
             <Camera className="h-5 w-5 text-white/50" />
 
             <h2 className="text-lg font-medium">
-              Field Camera
+              Field Cameras
             </h2>
           </div>
 
           <p className="mt-1 text-sm text-white/40">
-            Monitor your configured field cameras
-            and run AI analysis on captured frames.
+            Access your camera feeds and analyze captured
+            images using the agricultural AI pipeline.
           </p>
         </div>
 
@@ -36,25 +37,25 @@ export default function DashboardCamera({
           href="/camera"
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-2.5 text-sm transition hover:bg-white/10"
         >
-          Open Camera
+          Manage Cameras
           <ExternalLink className="h-4 w-4" />
         </Link>
       </div>
 
       <div className="mt-6 grid gap-3 md:grid-cols-3">
         <InfoItem
-          label="Configured Cameras"
+          label="Registered Cameras"
           value={cameraCount.toString()}
         />
 
         <InfoItem
-          label="Monitoring"
-          value="Available"
+          label="Camera Management"
+          value="View and configure"
         />
 
         <InfoItem
-          label="AI Analysis"
-          value="Ready"
+          label="AI Processing"
+          value="Available on request"
         />
       </div>
     </section>

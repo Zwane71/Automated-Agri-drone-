@@ -10,10 +10,6 @@ const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 ).replace(/\/+$/, "");
 
-console.log("AI API URL:", API_URL);
-
-console.log("AI API URL:", API_URL);
-
 
 async function postImage<T>(
   path: string,
@@ -126,7 +122,7 @@ export async function analyzeFull(
   file: Blob,
   fieldId?: number | null
 ): Promise<AnalysisResult> {
-  console.log("[ANALYZE] analyzeFull called");
+
 
   const result = await postImage<AnalysisResult>(
     "/api/v1/analysis/full",
@@ -135,8 +131,6 @@ export async function analyzeFull(
       ? { field_id: String(fieldId) }
       : undefined
   );
-
-  console.log("[ANALYZE] Analysis successful:", result);
 
   return result;
 }

@@ -1,117 +1,145 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-
+import { useEffect, useState } from "react";
 import {
-  AlertCircle,
-  CheckCircle2,
+  ArrowRight,
+  CalendarClock,
+  ClipboardCheck,
   FileImage,
-  Loader2,
-  MapPin,
-  Sprout,
-   ArrowRight,
-  Camera,
 } from "lucide-react";
 
 import Link from "next/link";
-import DashboardShell from "@/components/dashboard/DashboardShell";
-import PageHeader from "@/components/dashboard/PageHeader";
-import StatCard from "@/components/dashboard/StatCard";
 
-import { analyzeFull } from "@/lib/api";
+import {
+  getFarms,
+  getMissions,
+  getMissionOccurrences,
+  getAnalysisHistory,
+} from "@/lib/api";
 
 import type {
-  AnalysisResult,
-  CropDetection,
-  DiseaseDetection,
-} from "@/components/analysis/types";
+  Farm,
+  Mission,
+  MissionOccurrence,
+  AnalysisHistoryRecord,
+} from "@/lib/api";
+
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import DashboardCamera from "@/components/dashboard/DashboardCamera";
+import DashboardShell from "@/components/dashboard/DashboardShell";
+import PageHeader from "@/components/dashboard/PageHeader";
 
 export default function HomePage() {
-  const [result, setResult] = useState<AnalysisResult | null>(
-    null
-  );
+
   const [cameraCount, setCameraCount] = useState(0);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [farmCount, setFarmCount] = useState(0);
+  const [fieldCount, setFieldCount] = useState(0);
+  const [scheduledInspectionCount, setScheduledInspectionCount] =
+    useState(0);
+  const [completedAnalysisCount, setCompletedAnalysisCount] =
+    useState(0);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
 
-  const diseaseSummary = useMemo(() => {
-    if (!result) return {};
+  const [recentInspections, setRecentInspections] =
+  useState<AnalysisHistoryRecord[]>([]);
 
-    const summary: Record<string, number> = {};
+  const [missions, setMissions] = useState<Mission[]>([]);
 
-    result.crops.forEach((crop) => {
-      crop.diseases.forEach((disease) => {
-        summary[disease.disease] =
-          (summary[disease.disease] || 0) + 1;
-      });
-    });
+  const [occurrences, setOccurrences] =
+    useState<MissionOccurrence[]>([]);
 
-    return summary;
-  }, [result]);
+  useEffect(() => {
+  let cancelled = false;
 
-  const averageCropConfidence = useMemo(() => {
-    if (!result || result.crops.length === 0) return 0;
+  async function loadDashboardData() {
+    setDashboardLoading(true);
 
-    const total = result.crops.reduce(
-      (sum, crop) => sum + crop.confidence,
+    const [farmsResult, missionsResult, occurrencesResult, historyResult] =
+      await Promise.allSettled([
+        getFarms(),
+        getMissions(),
+        getMissionOccurrences(90, true),
+        getAnalysisHistory(),
+      ]);
+
+    if (cancelled) return;
+
+    if (farmsResult.status === "fulfilled") {
+  const farms = farmsResult.value;
+
+  setFarmCount(farms.length);
+  setFieldCount(
+    farms.reduce(
+      (total, farm) => total + farm.fields.length,
       0
-    );
-
-    return total / result.crops.length;
-  }, [result]);
-
-  const averageDiseaseConfidence = useMemo(() => {
-    if (!result || result.disease_count === 0) return 0;
-
-    const diseases: DiseaseDetection[] = result.crops.flatMap(
-      (crop) => crop.diseases
-    );
-
-    if (diseases.length === 0) return 0;
-
-    const total = diseases.reduce(
-      (sum, disease) => sum + disease.confidence,
-      0
-    );
-
-    return total / diseases.length;
-  }, [result]);
-
-  const handleUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0];
-
-    if (!file) return;
-
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setFileName(file.name);
-
-    try {
-      const analysis = await analyzeFull(file);
-
-      setResult(analysis);
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to analyze the image."
-      );
-    } finally {
-      setLoading(false);
-
-      event.target.value = "";
+    )
+  );
     }
+
+    if (missionsResult.status === "fulfilled") {
+      setMissions(missionsResult.value);
+    }
+
+    if (historyResult.status === "fulfilled") {
+      const history = [...historyResult.value].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      );
+
+      setRecentInspections(history.slice(0, 5));
+      setCompletedAnalysisCount(history.length);
+    }
+
+    // Missions and occurrences are separate records.
+    // Use occurrence records for the scheduled-inspection count.
+    if (occurrencesResult.status === "fulfilled") {
+      const occurrences = occurrencesResult.value;
+
+      setScheduledInspectionCount(
+        occurrences.filter(
+          (occurrence) => occurrence.status === "pending"
+        ).length
+      );
+    }
+
+    if (historyResult.status === "fulfilled") {
+      setCompletedAnalysisCount(historyResult.value.length);
+    }
+
+    if (missionsResult.status === "rejected") {
+      console.error("Failed to load missions:", missionsResult.reason);
+    }
+
+    if (farmsResult.status === "rejected") {
+      console.error("Failed to load farms:", farmsResult.reason);
+    }
+
+    if (occurrencesResult.status === "rejected") {
+      console.error(
+        "Failed to load inspection occurrences:",
+        occurrencesResult.reason
+      );
+    }
+
+    if (historyResult.status === "rejected") {
+      console.error(
+        "Failed to load analysis history:",
+        historyResult.reason
+      );
+    }
+
+    setDashboardLoading(false);
+  }
+
+  void loadDashboardData();
+
+  return () => {
+    cancelled = true;
   };
+}, []);
 
   useEffect(() => {
   try {
@@ -137,7 +165,7 @@ export default function HomePage() {
   }
 }, []);
   return (
-    <DashboardShell>
+  <DashboardShell>
       <div className="space-y-6 p-5 md:p-8">
         <PageHeader
           title="Dashboard"
@@ -146,278 +174,233 @@ export default function HomePage() {
 
         {/* Overview */}
         <DashboardOverview
-          cropCount={result?.crop_count ?? 0}
-          diseasedCropCount={
-            result?.diseased_crop_count ?? 0
-          }
-          diseaseCount={
-            result?.disease_count ?? 0
-          }
-          cameraCount={cameraCount}
-        />
-        <DashboardCamera
-          cameraCount={cameraCount}
+          farmCount={farmCount}
+          fieldCount={fieldCount}
+          scheduledInspectionCount={scheduledInspectionCount}
+          completedAnalysisCount={completedAnalysisCount}
         />
 
-        {/* AI Analysis */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <FileImage className="h-5 w-5 text-white/50" />
-
-                <h2 className="text-lg font-medium">
-                  AI Field Analysis
-                </h2>
-              </div>
-
-              <p className="mt-1 text-sm text-white/40">
-                Upload a field image to detect crops and
-                analyze them for disease.
+            {dashboardLoading && (
+              <p className="text-xs text-white/40">
+                Refreshing dashboard statistics...
               </p>
+            )}
 
-              {fileName && (
-                <p className="mt-2 text-xs text-white/30">
-                  Latest image: {fileName}
-                </p>
-              )}
-            </div>
-
-            <label
-              className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-medium transition ${
-                loading
-                  ? "cursor-not-allowed bg-white/10 text-white/40"
-                  : "cursor-pointer bg-emerald-500 text-black hover:bg-emerald-400"
-              }`}
+          <DashboardCamera cameraCount={cameraCount} />
+          
+            {/* AI Analysis shortcut */}
+            <Link
+              href="/analysis"
+              className="group block rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-emerald-400/30 hover:bg-white/[0.05]"
             >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <FileImage className="h-4 w-4" />
-                  Analyze Image
-                </>
-              )}
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
+                    <FileImage className="h-6 w-6" />
+                  </div>
 
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleUpload}
-                disabled={loading}
-                className="hidden"
-              />
-            </label>
-          </div>
+                  <div>
+                    <h2 className="text-lg font-medium">
+                      AI Field Analysis
+                    </h2>
 
-          {error && (
-            <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/10 p-4">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
-
-              <div>
-                <p className="text-sm font-medium text-red-300">
-                  Analysis failed
-                </p>
-
-                <p className="mt-1 text-sm text-red-300/70">
-                  {error}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Analysis results */}
-        {result && (
-          <>
-            <div className="grid gap-4 lg:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-                <p className="text-sm text-white/40">
-                  Image Size
-                </p>
-
-                <p className="mt-2 text-2xl font-semibold">
-                  {result.image_width} ×{" "}
-                  {result.image_height}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-                <p className="text-sm text-white/40">
-                  Crop Confidence
-                </p>
-
-                <p className="mt-2 text-2xl font-semibold">
-                  {(averageCropConfidence * 100).toFixed(1)}%
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-                <p className="text-sm text-white/40">
-                  Disease Confidence
-                </p>
-
-                <p className="mt-2 text-2xl font-semibold">
-                  {result.disease_count > 0
-                    ? `${(
-                        averageDiseaseConfidence * 100
-                      ).toFixed(1)}%`
-                    : "—"}
-                </p>
-              </div>
-            </div>
-
-            {/* Disease summary */}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-              <h2 className="text-lg font-medium">
-                Disease Summary
-              </h2>
-
-              <p className="mt-1 text-sm text-white/40">
-                Disease findings returned by the AI model.
-              </p>
-
-              {Object.keys(diseaseSummary).length === 0 ? (
-                <div className="mt-5 rounded-xl border border-dashed border-white/10 p-6 text-center">
-                  <p className="text-sm text-white/40">
-                    No disease findings were returned.
-                  </p>
+                    <p className="mt-1 max-w-xl text-sm leading-6 text-white/40">
+                      Open the analysis workspace to detect crops,
+                      analyze cabbage diseases, and review AI results.
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {Object.entries(diseaseSummary).map(
-                    ([disease, count]) => (
-                      <div
-                        key={disease}
-                        className="rounded-xl border border-white/10 bg-white/[0.02] p-4"
-                      >
-                        <p className="text-sm font-medium">
-                          {disease.replaceAll("_", " ")}
-                        </p>
 
-                        <p className="mt-2 text-2xl font-semibold">
-                          {count}
-                        </p>
-
-                        <p className="mt-1 text-xs text-white/30">
-                          finding{count === 1 ? "" : "s"}
-                        </p>
-                      </div>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Crop analysis */}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-              <h2 className="text-lg font-medium">
-                Crop Analysis
-              </h2>
-
-              <p className="mt-1 text-sm text-white/40">
-                Individual crop detections and associated
-                disease findings.
-              </p>
-
-              <div className="mt-5 space-y-3">
-                {result.crops.map(
-                  (crop: CropDetection) => (
-                    <div
-                      key={crop.crop_id}
-                      className="rounded-xl border border-white/10 bg-white/[0.02] p-4"
-                    >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <p className="font-medium capitalize">
-                            {crop.crop}
-                          </p>
-
-                          <p className="mt-1 text-xs text-white/30">
-                            Crop #{crop.crop_id} ·{" "}
-                            {(
-                              crop.confidence * 100
-                            ).toFixed(1)}
-                            % confidence
-                          </p>
-                        </div>
-
-                        <div className="text-sm text-white/40">
-                          {crop.disease_count} disease{" "}
-                          {crop.disease_count === 1
-                            ? "finding"
-                            : "findings"}
-                        </div>
-                      </div>
-
-                      {crop.diseases.length > 0 && (
-                        <div className="mt-4 space-y-2">
-                          {crop.diseases.map(
-                            (
-                              disease,
-                              index
-                            ) => (
-                              <div
-                                key={`${crop.crop_id}-${disease.disease}-${index}`}
-                                className="flex flex-col gap-2 rounded-lg border border-red-400/10 bg-red-400/[0.03] p-3 md:flex-row md:items-center md:justify-between"
-                              >
-                                <div>
-                                  <p className="text-sm capitalize">
-                                    {disease.disease.replaceAll(
-                                      "_",
-                                      " "
-                                    )}
-                                  </p>
-
-                                  {disease.affected_area_percent !==
-                                    undefined && (
-                                    <p className="mt-1 text-xs text-white/30">
-                                      Affected area:{" "}
-                                      {disease.affected_area_percent.toFixed(
-                                        2
-                                      )}
-                                      %
-                                    </p>
-                                  )}
-                                </div>
-
-                                <span className="text-xs text-white/40">
-                                  {(
-                                    disease.confidence *
-                                    100
-                                  ).toFixed(1)}
-                                  % confidence
-                                </span>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                )}
+                <span className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-emerald-400 transition group-hover:text-emerald-300">
+                  Open Analysis
+                  <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+                </span>
               </div>
-            </div>
-          </>
-        )}
+            </Link>
 
-        {/* Empty state */}
-        {!result && !loading && !error && (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
-            <Sprout className="mx-auto h-10 w-10 text-white/20" />
+            
 
-            <h2 className="mt-4 text-lg font-medium">
-              No analysis yet
-            </h2>
+{/* Recent Reports */}
+<section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+  <div className="flex items-center justify-between gap-4">
+    <div>
+      <div className="flex items-center gap-2">
+        <ClipboardCheck className="h-5 w-5 text-emerald-400" />
+        <h2 className="text-lg font-medium">
+          Recent Reports
+        </h2>
+      </div>
 
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-white/40">
-              Upload an agricultural field image above to
-              start detecting crops and analyzing disease.
+      <p className="mt-1 text-sm text-white/40">
+        Review your latest saved AI analysis reports.
+      </p>
+    </div>
+
+    <Link
+      href="/reports"
+      className="inline-flex items-center gap-2 text-sm text-emerald-400 hover:text-emerald-300"
+    >
+      View All Reports
+      <ArrowRight className="h-4 w-4" />
+    </Link>
+  </div>
+
+  {recentInspections.length === 0 ? (
+    <div className="mt-5 rounded-xl border border-dashed border-white/10 p-6 text-center">
+      <FileImage className="mx-auto h-8 w-8 text-white/20" />
+
+      <p className="mt-3 text-sm text-white/50">
+        No reports available yet.
+      </p>
+
+      <Link
+        href="/analysis"
+        className="mt-3 inline-flex text-sm text-emerald-400 hover:text-emerald-300"
+      >
+        Run an AI analysis
+      </Link>
+    </div>
+  ) : (
+    <div className="mt-5 space-y-3">
+      {recentInspections.map((report) => (
+        <div
+          key={report.id}
+          className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <p className="font-medium">
+              Report #{report.id}
+            </p>
+
+            <p className="mt-1 text-xs text-white/40">
+              {new Date(report.created_at).toLocaleString()}
+            </p>
+
+            <p className="mt-2 text-sm text-white/60">
+              {report.crop_count} crops ·{" "}
+              {report.diseased_crop_count} diseased crops ·{" "}
+              {report.disease_count} disease findings
             </p>
           </div>
-        )}
+
+          <Link
+            href="/reports"
+            className="inline-flex items-center gap-2 text-sm text-emerald-400 hover:text-emerald-300"
+          >
+            Open Reports
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      ))}
+    </div>
+  )}
+</section>
+
+
+{/* Upcoming Missions */}
+<section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+  <div className="flex items-center justify-between gap-4">
+    <div>
+      <div className="flex items-center gap-2">
+        <CalendarClock className="h-5 w-5 text-emerald-400" />
+        <h2 className="text-lg font-medium">
+          Upcoming Missions
+        </h2>
+      </div>
+
+      <p className="mt-1 text-sm text-white/40">
+        Your next scheduled farm inspections.
+      </p>
+    </div>
+
+    <Link
+      href="/missions"
+      className="inline-flex items-center gap-2 text-sm text-emerald-400 hover:text-emerald-300"
+    >
+      Manage Missions
+      <ArrowRight className="h-4 w-4" />
+    </Link>
+  </div>
+
+  {(() => {
+    const now = Date.now();
+
+    const upcoming = occurrences
+      .filter(
+        (item) =>
+          item.status === "pending" &&
+          new Date(item.scheduled_at).getTime() >= now
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.scheduled_at).getTime() -
+          new Date(b.scheduled_at).getTime()
+      )
+      .slice(0, 5);
+
+    if (upcoming.length === 0) {
+      return (
+        <div className="mt-5 rounded-xl border border-dashed border-white/10 p-6 text-center">
+          <CalendarClock className="mx-auto h-8 w-8 text-white/20" />
+
+          <p className="mt-3 text-sm text-white/50">
+            No upcoming inspections scheduled.
+          </p>
+
+          <Link
+            href="/missions"
+            className="mt-3 inline-flex text-sm text-emerald-400 hover:text-emerald-300"
+          >
+            Schedule an inspection
+          </Link>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-5 space-y-3">
+        {upcoming.map((occurrence) => {
+          const mission = missions.find(
+            (item) => item.id === occurrence.mission_id
+          );
+
+          return (
+            <div
+              key={occurrence.id}
+              className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="font-medium">
+                  {mission?.title ?? `Mission #${occurrence.mission_id}`}
+                </p>
+
+                <p className="mt-1 text-sm text-white/50">
+                  {new Date(
+                    occurrence.scheduled_at
+                  ).toLocaleString()}
+                </p>
+
+                <p className="mt-1 text-xs text-white/40">
+                  Field #{mission?.field_id ?? "Unknown"}
+                </p>
+              </div>
+
+              <Link
+                href={`/analysis?fieldId=${mission?.field_id ?? ""}&occurrenceId=${occurrence.id}`}
+                className="inline-flex items-center gap-2 text-sm text-emerald-400 hover:text-emerald-300"
+              >
+                Open inspection
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          );
+        })}
+      </div>
+    );
+  })()}
+</section>
+
+
       </div>
     </DashboardShell>
   );

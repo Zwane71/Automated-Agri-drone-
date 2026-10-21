@@ -1,61 +1,57 @@
+
 "use client";
 
 import {
   Activity,
-  AlertCircle,
-  Camera,
+  CalendarClock,
+  CheckCircle2,
   Sprout,
+  Tractor,
 } from "lucide-react";
 
 import StatCard from "./StatCard";
 
 interface DashboardOverviewProps {
-  cropCount: number;
-  diseasedCropCount: number;
-  diseaseCount: number;
-  cameraCount: number;
+  farmCount: number;
+  fieldCount: number;
+  scheduledInspectionCount: number;
+  completedAnalysisCount: number;
 }
 
 export default function DashboardOverview({
-  cropCount,
-  diseasedCropCount,
-  diseaseCount,
-  cameraCount,
+  farmCount,
+  fieldCount,
+  scheduledInspectionCount,
+  completedAnalysisCount,
 }: DashboardOverviewProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <StatCard
-        label="Crops Detected"
-        value={cropCount}
-        change="From latest analysis"
+        label="Total Farms"
+        value={farmCount}
+        change="Registered farms"
+        icon={<Tractor className="h-5 w-5" />}
+      />
+
+      <StatCard
+        label="Fields Monitored"
+        value={fieldCount}
+        change="Available for inspection"
         icon={<Sprout className="h-5 w-5" />}
       />
 
       <StatCard
-        label="Diseased Crops"
-        value={diseasedCropCount}
-        change="Crops with disease findings"
-        icon={
-          <AlertCircle className="h-5 w-5" />
-        }
+        label="Scheduled Inspections"
+        value={scheduledInspectionCount}
+        change="Pending inspection tasks"
+        icon={<CalendarClock className="h-5 w-5" />}
       />
 
       <StatCard
-        label="Disease Findings"
-        value={diseaseCount}
-        change="Detected disease regions"
-        icon={
-          <Activity className="h-5 w-5" />
-        }
-      />
-
-      <StatCard
-        label="Cameras"
-        value={cameraCount}
-        change="Configured field cameras"
-        icon={
-          <Camera className="h-5 w-5" />
-        }
+        label="Completed Analyses"
+        value={completedAnalysisCount}
+        change="Saved AI analysis records"
+        icon={<CheckCircle2 className="h-5 w-5" />}
       />
     </div>
   );
