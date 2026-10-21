@@ -22,7 +22,7 @@ const features = [
   {
     number: "01",
     icon: Scan,
-    title: "Cabbage Detection",
+    title: "Plant Detection",
     description:
       "Identify  plants in crop images using your trained AI detection model.",
     tag: "Computer vision",
